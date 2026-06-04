@@ -1,0 +1,43 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy to Cloudflare Workers
+        id: deploy
+        run: |
+          npx wrangler deploy 2>&1 | tee deploy.log
+          URL=$(grep -oP 'https://[^\s]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$URL" ]; then
+            URL="https://skills-sub.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "✅ 部署成功"
+          echo ""
+          echo "🔗 ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "## ✅ Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "🔗 **[${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})**" >> "$GITHUB_STEP_SUMMARY"

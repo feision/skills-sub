@@ -1,0 +1,230 @@
+// storage.ts — KV + R2 操作封装
+
+import type { Env, SkillMeta, SkillVersion, SkillListItem } from "./types";
+
+// ── KV Keys ──
+const kSkill = (id: string) => `skill:${id}`;
+const kVersion = (id: string, v: number) => `skill:${id}:v${v}`;
+const kIndex = "index:skills";
+const kAuthorIndex = (author: string) => `index:author:${author}`;
+const kTagIndex = (tag: string) => `index:tag:${tag}`;
+
+// ── R2 Keys ──
+const r2Key = (id: string, v: number) => `skills/${id}/v${v}.md`;
+const r2DiffKey = (id: string, v: number) => `skills/${id}/v${v}.diff`;
+
+// ── Skill CRUD ──
+
+export async function createSkill(env: Env, meta: SkillMeta, content: string, message: string): Promise<SkillVersion> {
+  const version = 1;
+  const r2k = r2Key(meta.id, version);
+  const now = new Date().toISOString();
+
+  // 写 R2
+  await env.SKILLS_R2.put(r2k, content);
+
+  // 写版本元数据
+  const ver: SkillVersion = { version, message, createdAt: now, r2Key: r2k, size: new TextEncoder().encode(content).length };
+  await env.SKILLS_KV.put(kVersion(meta.id, version), JSON.stringify(ver));
+
+  // 写 skill 元数据
+  meta.latestVersion = version;
+  meta.updatedAt = now;
+  await env.SKILLS_KV.put(kSkill(meta.id), JSON.stringify(meta));
+
+  // 更新索引
+  await addToIndex(env, kIndex, meta.id);
+  await addToIndex(env, kAuthorIndex(meta.author), meta.id);
+  for (const tag of meta.tags) await addToIndex(env, kTagIndex(tag), meta.id);
+
+  return ver;
+}
+
+export async function updateSkill(env: Env, id: string, content: string, message: string): Promise<SkillVersion | null> {
+  const meta = await getSkillMeta(env, id);
+  if (!meta) return null;
+
+  const version = meta.latestVersion + 1;
+  const r2k = r2Key(id, version);
+  const now = new Date().toISOString();
+
+  // 读旧版本生成 diff
+  const oldContent = await readR2(env, r2Key(id, version - 1));
+  if (oldContent !== null) {
+    const diff = generateDiff(oldContent, content);
+    await env.SKILLS_R2.put(r2DiffKey(id, version), diff);
+  }
+
+  // 写新版本到 R2
+  await env.SKILLS_R2.put(r2k, content);
+
+  // 写版本元数据
+  const ver: SkillVersion = { version, message, createdAt: now, r2Key: r2k, size: new TextEncoder().encode(content).length };
+  await env.SKILLS_KV.put(kVersion(id, version), JSON.stringify(ver));
+
+  // 更新 skill 元数据
+  meta.latestVersion = version;
+  meta.updatedAt = now;
+  await env.SKILLS_KV.put(kSkill(id), JSON.stringify(meta));
+
+  return ver;
+}
+
+export async function getSkillMeta(env: Env, id: string): Promise<SkillMeta | null> {
+  const raw = await env.SKILLS_KV.get(kSkill(id));
+  return raw ? JSON.parse(raw) : null;
+}
+
+export async function deleteSkill(env: Env, id: string): Promise<boolean> {
+  const meta = await getSkillMeta(env, id);
+  if (!meta) return false;
+
+  // 删 KV
+  await env.SKILLS_KV.delete(kSkill(id));
+  for (let v = 1; v <= meta.latestVersion; v++) {
+    await env.SKILLS_KV.delete(kVersion(id, v));
+  }
+
+  // 删 R2
+  for (let v = 1; v <= meta.latestVersion; v++) {
+    await env.SKILLS_R2.delete(r2Key(id, v));
+    await env.SKILLS_R2.delete(r2DiffKey(id, v));
+  }
+
+  // 从索引移除
+  await removeFromIndex(env, kIndex, id);
+  await removeFromIndex(env, kAuthorIndex(meta.author), id);
+  for (const tag of meta.tags) await removeFromIndex(env, kTagIndex(tag), id);
+
+  return true;
+}
+
+// ── 版本 ──
+
+export async function getVersion(env: Env, id: string, v: number): Promise<SkillVersion | null> {
+  const raw = await env.SKILLS_KV.get(kVersion(id, v));
+  return raw ? JSON.parse(raw) : null;
+}
+
+export async function listVersions(env: Env, id: string): Promise<SkillVersion[]> {
+  const meta = await getSkillMeta(env, id);
+  if (!meta) return [];
+  const versions: SkillVersion[] = [];
+  for (let v = 1; v <= meta.latestVersion; v++) {
+    const ver = await getVersion(env, id, v);
+    if (ver) versions.push(ver);
+  }
+  return versions.reverse();
+}
+
+export async function readR2(env: Env, key: string): Promise<string | null> {
+  const obj = await env.SKILLS_R2.get(key);
+  return obj ? await obj.text() : null;
+}
+
+export async function downloadSkill(env: Env, id: string, version?: number): Promise<{ content: string; contentType: string } | null> {
+  const meta = await getSkillMeta(env, id);
+  if (meta) {
+    const v = version || meta.latestVersion;
+    const content = await readR2(env, r2Key(id, v));
+    if (content) return { content, contentType: "text/markdown; charset=utf-8" };
+  }
+  return null;
+}
+
+export async function getDiff(env: Env, id: string, v: number): Promise<string | null> {
+  return readR2(env, r2DiffKey(id, v));
+}
+
+// ── 列表/搜索 ──
+
+export async function listSkills(env: Env, opts: { search?: string; tag?: string; author?: string } = {}): Promise<SkillListItem[]> {
+  let ids: string[] = [];
+
+  if (opts.author) {
+    const raw = await env.SKILLS_KV.get(kAuthorIndex(opts.author));
+    ids = raw ? JSON.parse(raw) : [];
+  } else if (opts.tag) {
+    const raw = await env.SKILLS_KV.get(kTagIndex(opts.tag));
+    ids = raw ? JSON.parse(raw) : [];
+  } else {
+    const raw = await env.SKILLS_KV.get(kIndex);
+    ids = raw ? JSON.parse(raw) : [];
+  }
+
+  const items: SkillListItem[] = [];
+  for (const id of ids) {
+    const meta = await getSkillMeta(env, id);
+    if (!meta) continue;
+    if (opts.search) {
+      const q = opts.search.toLowerCase();
+      if (!meta.name.toLowerCase().includes(q) && !meta.description.toLowerCase().includes(q)) continue;
+    }
+    items.push({
+      id: meta.id, name: meta.name, description: meta.description,
+      author: meta.author, authorType: meta.authorType,
+      tags: meta.tags, latestVersion: meta.latestVersion, updatedAt: meta.updatedAt,
+    });
+  }
+  return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+// ── 索引操作 ──
+
+async function addToIndex(env: Env, key: string, id: string) {
+  const raw = await env.SKILLS_KV.get(key);
+  const ids: string[] = raw ? JSON.parse(raw) : [];
+  if (!ids.includes(id)) { ids.push(id); await env.SKILLS_KV.put(key, JSON.stringify(ids)); }
+}
+
+async function removeFromIndex(env: Env, key: string, id: string) {
+  const raw = await env.SKILLS_KV.get(key);
+  if (!raw) return;
+  const ids: string[] = JSON.parse(raw);
+  const filtered = ids.filter(i => i !== id);
+  await env.SKILLS_KV.put(key, JSON.stringify(filtered));
+}
+
+// ── Diff 引擎 ──
+
+function generateDiff(oldText: string, newText: string): string {
+  const oldLines = oldText.split("\n");
+  const newLines = newText.split("\n");
+  const result: string[] = [];
+
+  // 简单 LCS diff
+  const lcs = lcsMatrix(oldLines, newLines);
+  let i = oldLines.length, j = newLines.length;
+  const ops: { type: "add" | "remove" | "same"; oldLine?: number; newLine?: number; content: string }[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i-1] === newLines[j-1]) {
+      ops.unshift({ type: "same", oldLine: i, newLine: j, content: oldLines[i-1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || lcs[i][j-1] >= lcs[i-1][j])) {
+      ops.unshift({ type: "add", newLine: j, content: newLines[j-1] });
+      j--;
+    } else {
+      ops.unshift({ type: "remove", oldLine: i, content: oldLines[i-1] });
+      i--;
+    }
+  }
+
+  for (const op of ops) {
+    if (op.type === "same") result.push(`  ${op.content}`);
+    else if (op.type === "add") result.push(`+ ${op.content}`);
+    else result.push(`- ${op.content}`);
+  }
+  return result.join("\n");
+}
+
+function lcsMatrix(a: string[], b: string[]): number[][] {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  return dp;
+}

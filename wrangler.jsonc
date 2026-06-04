@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "skills-sub",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "SKILLS_KV",
+      "id": "skills-sub-kv-dev"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SKILLS_R2",
+      "bucket_name": "skills-sub-r2-dev"
+    }
+  ],
+  "vars": {
+    "API_KEY": "dev-key-change-me"
+  }
+}
