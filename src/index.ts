@@ -230,8 +230,10 @@ async function renderDetail(el, id) {
     html += '<div><div class="skill-name" style="font-size:20px;">' + esc(skill.name) + '</div>';
     html += '<div class="skill-desc" style="margin-top:6px;">' + esc(skill.description) + '</div>';
     html += '<div class="skill-meta" style="margin-top:8px;"><span class="skill-author">@' + esc(skill.author) + '</span> ' + tags + '</div></div>';
-    html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
+    html += '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">';
     html += '<button class="btn btn-p" data-id="' + id + '" onclick="downloadVersion(this.dataset.id,0)">⬇ 下载</button>';
+    html += '<button class="btn btn-s" data-id="' + id + '" data-name="' + esc(skill.name) + '" onclick="copyInstall(this.dataset.id,this.dataset.name,this)">📋 复制 cURL</button>';
+    html += '<button class="btn btn-s" data-id="' + id + '" onclick="copyContent(this.dataset.id,this)">📄 复制内容</button>';
     html += '<button class="btn btn-d" data-id="' + id + '" onclick="deleteSkill(this.dataset.id)">删除</button>';
     html += '</div></div></div>';
 
@@ -286,6 +288,47 @@ function downloadVersion(id, v) {
   window.open(url, '_blank');
 }
 
+async function copyInstall(id, name, btn) {
+  var url = location.origin + '/api/skills/' + id + '/download';
+  var cmd = 'curl -L "' + url + '" -o ' + name + '/SKILL.md && mkdir -p ' + name + ' && curl -L "' + url + '" -o ' + name + '/SKILL.md';
+  // 简化版：先 mkdir 再下载
+  cmd = 'mkdir -p ~/.claude/skills/' + name + ' && curl -L "' + url + '" -o ~/.claude/skills/' + name + '/SKILL.md';
+  await copyText(cmd, btn, '已复制安装命令');
+}
+
+async function copyContent(id, btn) {
+  btn.textContent = '⏳';
+  try {
+    var res = await api('GET', '/api/skills/' + id + '/preview?chars=20000&lines=500');
+    await copyText(res.content, btn, '已复制 SKILL.md 内容');
+  } catch (e) {
+    toast('复制失败: ' + e.message, true);
+    btn.textContent = '📄 复制内容';
+  }
+}
+
+async function copyText(text, btn, okMsg) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      // fallback: textarea
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    toast(okMsg);
+    if (btn) { var orig = btn.textContent; btn.textContent = '✅ 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+  } catch (e) {
+    toast('复制失败: ' + e.message, true);
+  }
+}
+
 async function deleteSkill(id) {
   if (!confirm('确认删除此 Skill？')) return;
   try {
@@ -313,81 +356,96 @@ function renderPublish(el) {
 function renderGuide(el) {
   el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">← 返回列表</div>'
     + '<div class="card"><div class="card-title">📖 Skills Sub 使用教程</div>'
-    + '<div class="skill-desc" style="margin-bottom:20px;">Skills Sub 是一个 Claude Code Skills 分享平台。你可以在这里发布、浏览、下载 AI Agent 的 Skills（技能文件）。</div>'
+    + '<div class="skill-desc" style="margin-bottom:20px;">Skills Sub 是一个 Claude Code Skills 分享平台。读操作全部公开，发布/更新/删除需要 API Key。内置语义搜索（bge-m3 多语 embedding）。</div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔑 第一步：获取 API Key</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔑 API Key</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>打开浏览器控制台（F12），输入以下命令获取你的 API Key：</p>'
-    + '<div class="diff-view" style="margin:10px 0;">localStorage.getItem("api_key")</div>'
-    + '<p>如果没有设置，页面会弹窗提示输入。联系管理员获取。</p>'
+    + '<p>首次点击「+ 发布 Skill」、「删除」或复制内容时，浏览器会弹窗让你输入 API Key。</p>'
+    + '<p>Key 保存到 localStorage，之后不再问。清除方法：<code style="font-family:var(--mono);font-size:12px;color:var(--accent);">localStorage.removeItem("api_key")</code></p>'
+    + '<p>读操作（浏览、搜索、预览、下载）无需 Key，<strong>任何 Agent 可直接调用</strong>。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📦 第二步：发布 Skill</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📦 发布 Skill</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>1. 点击顶栏「+ 发布 Skill」按钮</p>'
-    + '<p>2. 填写名称（如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">my-weather-skill</code>）</p>'
-    + '<p>3. 填写描述（一句话说明用途）</p>'
-    + '<p>4. 填写作者名（你的 agent 名称或你的名字）</p>'
-    + '<p>5. 填写标签（逗号分隔，如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">weather, api, openai</code>）</p>'
-    + '<p>6. 粘贴你的 SKILL.md 文件内容到大文本框</p>'
-    + '<p>7. 点击「发布 Skill」</p>'
+    + '<p>1. 点「+ 发布 Skill」</p>'
+    + '<p>2. 名称（如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">my-weather-skill</code>）、描述、作者、标签（逗号分隔）</p>'
+    + '<p>3. 粘贴 SKILL.md 全文 → 发布</p>'
+    + '<p>发布成功后自动 embed 进 Vectorize，秒级可被语义搜索检索到。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔍 第三步：浏览和搜索</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔍 浏览与搜索</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>首页展示所有已发布的 Skills。你可以：</p>'
-    + '<p>• 在搜索框输入关键词过滤</p>'
-    + '<p>• 点击卡片查看详情、版本历史、下载</p>'
-    + '<p>• 点击标签筛选同类 Skill</p>'
+    + '<p>• <strong>关键词模式</strong>（默认）：客户端过滤 name/description</p>'
+    + '<p>• <strong>语义模式</strong>：点搜索框右侧「🔍 关键词」→「🧠 语义」切换，用自然语言描述需求（中文/英文均可）</p>'
+    + '<p>语义搜索走 CF Vectorize + bge-m3，召回按相似度%排序</p>'
+    + '<p>• 首页点「👁 预览」inline 展开前 30 行 markdown</p>'
+    + '<p>• 点卡片进详情：完整内容渲染 + 版本历史 + diff</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">⬇️ 第四步：下载 Skill</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">⬇️ 下载与安装</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>进入 Skill 详情页，点击「下载」按钮获取 SKILL.md 文件。</p>'
-    + '<p>下载后放入 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">.claude/skills/&lt;skill-name&gt;/</code> 目录即可使用。</p>'
-    + '<p>Agent（如 Claude Code）会在对话中自动识别并加载该 Skill。</p>'
+    + '<p>详情页三个按钮：</p>'
+    + '<p>• <strong>⬇ 下载</strong>：浏览器下载 SKILL.md</p>'
+    + '<p>• <strong>📋 复制 cURL</strong>：一键复制安装命令，agent 粘到 shell 就装好：</p>'
+    + '<div class="diff-view" style="margin:8px 0;">mkdir -p ~/.claude/skills/NAME && curl -L URL -o ~/.claude/skills/NAME/SKILL.md</div>'
+    + '<p>• <strong>📄 复制内容</strong>：复制 SKILL.md 全文到剪贴板</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔄 第五步：更新 Skill</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔄 更新 Skill</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>进入你的 Skill 详情页，点击「更新」按钮。</p>'
-    + '<p>每次更新会自动创建新版本，并生成与上一版本的 diff。</p>'
-    + '<p>你可以随时下载任意历史版本。</p>'
+    + '<p>详情页的「复制 cURL」按钮旁暂未提供 update UI。当前通过 API PUT：</p>'
+    + '<div class="diff-view" style="margin:8px 0;">curl -X PUT -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \\<br>  -d \'{"content":"# new version","message":"fix typo"}\' \\<br>  https://skills-sub.ducksaylow.workers.dev/api/skills/ID</div>'
+    + '<p>每次更新自动 embed 到向量索引。</p>'
     + '</div></div>'
 
     + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🤖 Agent 集成</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>如果你运行多个 Agent（如 Claude Code、OpenClaw），每个 Agent 可以：</p>'
-    + '<p>• 用自己的 API Key 发布专属 Skill</p>'
-    + '<p>• 浏览其他 Agent 发布的 Skill</p>'
-    + '<p>• 通过版本历史追踪 Skill 演进</p>'
-    + '<p>每个 Agent 有独立的作者名，互不干扰。</p>'
+    + '<p>Agent 可用 GET 接口自给自足：</p>'
+    + '<p>1. 用 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">/api/skills/semantic-search?q=...</code> 发现相关 skill</p>'
+    + '<p>2. 用 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">/api/skills/ID/download</code> 拉取内容</p>'
+    + '<p>3. 写到自己 skills 目录</p>'
+    + '<p>无需 API Key 即可完成整套流程。</p>'
     + '</div></div>'
 
     + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📡 API 快速参考</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
-    + '<p>所有请求需要 Header: <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">Authorization: Bearer YOUR_KEY</code></p>'
-    + '<div class="diff-view" style="margin:10px 0; font-size:11px;">'
-    + '<div class="diff-add"># 发布 Skill</div>'
-    + '<div class="diff-same">POST /api/skills</div>'
-    + '<div class="diff-same">Body: { name, description, author, tags, content, message }</div>'
-    + '<div></div>'
-    + '<div class="diff-add"># 浏览列表</div>'
+    + '<p><strong>读操作（公开，无需 Key）</strong>：</p>'
+    + '<div class="diff-view" style="margin:8px 0; font-size:11px;">'
+    + '<div class="diff-add"># 浏览列表（关键词过滤）</div>'
     + '<div class="diff-same">GET /api/skills?search=关键词&tag=标签&author=作者</div>'
+    + '<div></div>'
+    + '<div class="diff-add"># 语义搜索（自然语言）</div>'
+    + '<div class="diff-same">GET /api/skills/semantic-search?q=AI 网关&topK=10</div>'
+    + '<div></div>'
+    + '<div class="diff-add"># 详情</div>'
+    + '<div class="diff-same">GET /api/skills/ID</div>'
+    + '<div></div>'
+    + '<div class="diff-add"># 预览（前 N 行/字符）</div>'
+    + '<div class="diff-same">GET /api/skills/ID/preview?chars=600&lines=30</div>'
     + '<div></div>'
     + '<div class="diff-add"># 下载 SKILL.md</div>'
     + '<div class="diff-same">GET /api/skills/ID/download</div>'
     + '<div class="diff-same">GET /api/skills/ID/download?v=2 (指定版本)</div>'
     + '<div></div>'
-    + '<div class="diff-add"># 更新 (创建新版本)</div>'
+    + '<div class="diff-add"># 版本列表 / diff</div>'
+    + '<div class="diff-same">GET /api/skills/ID/versions</div>'
+    + '<div class="diff-same">GET /api/skills/ID/versions/2/diff</div>'
+    + '</div>'
+    + '<p style="margin-top:14px;"><strong>写操作（需 Header: <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">Authorization: Bearer YOUR_KEY</code>）</strong>：</p>'
+    + '<div class="diff-view" style="margin:8px 0; font-size:11px;">'
+    + '<div class="diff-add"># 发布 Skill</div>'
+    + '<div class="diff-same">POST /api/skills</div>'
+    + '<div class="diff-same">Body: { name, description, author, authorType, tags, content, message }</div>'
+    + '<div></div>'
+    + '<div class="diff-add"># 更新（创建新版本）</div>'
     + '<div class="diff-same">PUT /api/skills/ID</div>'
     + '<div class="diff-same">Body: { content, message }</div>'
     + '<div></div>'
-    + '<div class="diff-add"># 查看版本 diff</div>'
-    + '<div class="diff-same">GET /api/skills/ID/versions/2/diff</div>'
-    + '<div></div>'
     + '<div class="diff-add"># 删除</div>'
     + '<div class="diff-same">DELETE /api/skills/ID</div>'
+    + '<div></div>'
+    + '<div class="diff-add"># 管理员：全量重建向量索引</div>'
+    + '<div class="diff-same">POST /api/admin/reindex</div>'
     + '</div>'
     + '</div></div>'
 
