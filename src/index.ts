@@ -46,6 +46,9 @@ const ICONS_TS: Record<string, string> = {
   robot: '<path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>',
   clock: '<path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>',
   logo: '<rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="10.5" width="14" height="3" rx="1"/><rect x="3" y="17" width="14" height="3" rx="1"/><path d="M19 2l.8 1.6 1.6.8-1.6.8L19 6.8l-.8-1.6-1.6-.8 1.6-.8z"/>',
+  folder: '<path d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026V5.25a2.25 2.25 0 00-2.25-2.25h-4.5a.75.75 0 01-.6-.3L12 1.5l-1.05 1.2a.75.75 0 01-.6.3h-4.5A2.25 2.25 0 003 5.25v4.526z"/><path d="M3.75 11.25a.75.75 0 00-.75.75v6.75A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V12a.75.75 0 00-.75-.75H3.75z"/>',
+  star: '<path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" fill="currentColor" stroke="none"/>',
+  fork: '<path d="M8 1.5a1.5 1.5 0 013 0v1.5h3v-1.5a1.5 1.5 0 013 0V5.25a3 3 0 01-3 3H10.5v6.75h.75a2.25 2.25 0 012.25 2.25v3a1.5 1.5 0 01-3 0V18a.75.75 0 00-.75-.75H7.5a.75.75 0 00-.75.75v2.25a1.5 1.5 0 01-3 0v-3A2.25 2.25 0 016 15h.75V8.25H6a3 3 0 01-3-3V1.5a1.5 1.5 0 013 0v1.5h2.25V1.5z" fill="currentColor" stroke="none"/>',
 };
 
 function icon(name: string, size = 14): string {
@@ -95,6 +98,7 @@ async function renderHome(el) {
     SEMANTIC_RESULTS = null;
     FILTER_TAB = 'all';
     var html = '<div class="card-title">Browse Skills</div>';
+    html += renderStats();
     html += '<div class="search-bar">';
     html += '<div class="search-box">' + icon('search', 18) + '<input id="search-input" placeholder="搜索 skill..." oninput="onSearchInput(this.value)"></div>';
     html += '<button class="btn btn-s search-mode-btn" id="search-mode-btn" onclick="toggleSearchMode()">' + icon('search', 12) + ' 关键词</button>';
@@ -118,7 +122,20 @@ function renderFilterTabs() {
   return '<div class="filter-tabs">'
     + filterTab('all', '全部', total)
     + filterTab('human', '原创', human)
-    + filterTab('agent', 'Fork', agent)
+    + filterTab('agent', 'Agent', agent)
+    + '</div>';
+}
+
+function renderStats() {
+  var total = ALL_SKILLS.length;
+  var human = ALL_SKILLS.filter(function(s){ return s.authorType === 'human'; }).length;
+  var agent = ALL_SKILLS.filter(function(s){ return s.authorType === 'agent'; }).length;
+  var avgVer = total ? (ALL_SKILLS.reduce(function(a,s){ return a + (s.latestVersion||0); }, 0) / total).toFixed(1) : '0';
+  return '<div class="stats">'
+    + '<div class="stat"><div class="stat-num">' + total + '</div><div class="stat-label">Repos</div></div>'
+    + '<div class="stat"><div class="stat-num">' + human + '</div><div class="stat-label">原创</div></div>'
+    + '<div class="stat"><div class="stat-num">' + agent + '</div><div class="stat-label">Agent</div></div>'
+    + '<div class="stat"><div class="stat-num">' + avgVer + '</div><div class="stat-label">平均版本</div></div>'
     + '</div>';
 }
 
@@ -130,7 +147,7 @@ function filterTab(key, label, count) {
 
 function setFilterTab(key) {
   FILTER_TAB = key;
-  // 重渲染 tabs + 列表
+  collapseAllCards();
   var tabsEl = document.querySelector('.filter-tabs');
   if (tabsEl) tabsEl.outerHTML = renderFilterTabs();
   var list = document.getElementById('skill-list');
@@ -140,35 +157,75 @@ function setFilterTab(key) {
   list.innerHTML = filtered.length ? renderCardList(filtered) : '<div class="empty">该分类暂无 Skill</div>';
 }
 
+function collapseAllCards() {
+  var cards = document.querySelectorAll('.skill-card.expanded');
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].classList.remove('expanded');
+  }
+}
+
 function renderCardList(arr) {
   return arr.map(function(s, i){ return renderSkillCard(s, i); }).join('');
 }
 
 function renderSkillCard(s, idx) {
   idx = idx || 0;
-  var delay = Math.min(idx, 6) * 0.04;
+  var delay = Math.min(idx, 10) * 0.06;
   var tags = (s.tags||[]).slice(0, 3).map(function(t){ return '<span class="skill-tag">#' + esc(t) + '</span>'; }).join('');
   var score = s.score != null ? '<span class="skill-score">' + (s.score*100).toFixed(0) + '%</span>' : '';
-  var letter = ((s.name || '?').charAt(0) || '?').toUpperCase();
-  return '<div class="card skill-card" data-id="' + s.id + '" style="animation-delay:' + delay + 's;">'
-    + '<div class="skill-card-icon">' + letter + '</div>'
+  var forkBadge = s.authorType === 'agent' ? '<span class="skill-fork-badge">FORK</span>' : '';
+  var dateStr = s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : '';
+  var isFork = s.authorType === 'agent';
+  return '<div class="card skill-card" data-id="' + s.id + '" style="animation-delay:' + delay.toFixed(2) + 's;" '
+    + 'role="button" tabindex="0" aria-expanded="false" '
+    + 'onclick="toggleDetail(this.dataset.id,this)" '
+    + 'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleDetail(this.dataset.id,this);}">'
+    + '<div class="skill-card-icon">' + icon('folder', 22) + '</div>'
     + '<div class="skill-card-body">'
     + '<div class="skill-card-head">'
     + '<div class="skill-name">' + esc(s.name) + '</div>'
+    + forkBadge
     + score
     + '</div>'
     + '<div class="skill-desc">' + esc(s.description) + '</div>'
-    + '<div class="skill-meta">'
-    + '<span class="skill-author">@' + esc(s.author) + '</span>'
+    + '<div class="skill-card-footer">'
+    + '<span class="skill-tag" style="background:rgba(79,255,176,.1);color:var(--accent);">' + icon(isFork ? 'robot' : 'check', 10) + ' ' + esc(s.author) + '</span>'
     + '<span class="skill-version">v' + s.latestVersion + '</span>'
-    + tags
+    + (dateStr ? '<span class="skill-date">' + dateStr + '</span>' : '')
     + '</div></div>'
     + '<div class="skill-card-actions">'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="togglePreview(this.dataset.id,this)" title="预览">' + icon('eye', 12) + '</button>'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="navigate(\'/skill/\'+this.dataset.id)" title="详情">' + icon('arrowRight', 12) + '</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();togglePreview(this.dataset.id,this)" title="预览">' + icon('eye', 12) + '</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();navigate(\'/skill/\'+this.dataset.id)" title="详情">' + icon('arrowRight', 12) + '</button>'
     + '</div>'
     + '<div class="skill-preview" id="prev-' + s.id + '" style="display:none;"></div>'
+    + '<div class="skill-detail" id="detail-' + s.id + '">'
+    + renderDetailPanel(s)
+    + '</div>'
     + '</div>';
+}
+
+function renderDetailPanel(s) {
+  var tags = (s.tags||[]).map(function(t){ return '<span class="skill-tag">#' + esc(t) + '</span>'; }).join(' ');
+  return '<div class="skill-detail-grid">'
+    + '<div class="skill-detail-item"><div class="skill-detail-label">作者</div><div class="skill-detail-value">@' + esc(s.author) + '</div></div>'
+    + '<div class="skill-detail-item"><div class="skill-detail-label">类型</div><div class="skill-detail-value">' + esc(s.authorType) + '</div></div>'
+    + '<div class="skill-detail-item"><div class="skill-detail-label">最新版本</div><div class="skill-detail-value">v' + s.latestVersion + '</div></div>'
+    + '<div class="skill-detail-item"><div class="skill-detail-label">更新时间</div><div class="skill-detail-value">' + (s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : '-') + '</div></div>'
+    + (tags ? '<div class="skill-detail-item skill-detail-full"><div class="skill-detail-label">标签</div><div class="skill-detail-value">' + tags + '</div></div>' : '')
+    + '</div>'
+    + '<div class="skill-detail-actions">'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();downloadVersion(this.dataset.id,0)">' + icon('download', 12) + ' 下载</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" data-name="' + esc(s.name) + '" onclick="event.stopPropagation();copyInstall(this.dataset.id,this.dataset.name,this)">' + icon('copy', 12) + ' 复制 cURL</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();copyContent(this.dataset.id,this)">' + icon('file', 12) + ' 复制内容</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();navigate(\'/skill/\'+this.dataset.id)">' + icon('arrowRight', 12) + ' 详情页</button>'
+    + '</div>';
+}
+
+function toggleDetail(id, card) {
+  if (!card) card = document.querySelector('.skill-card[data-id="' + id + '"]');
+  if (!card) return;
+  var isExpanded = card.classList.toggle('expanded');
+  card.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
 }
 
 function toggleSearchMode() {
@@ -229,7 +286,9 @@ function filterList(q) {
       return text.indexOf(q) >= 0;
     });
   }
-  list.innerHTML = filtered.length ? renderCardList(filtered) : '<div class="empty">未找到匹配的 skill</div>';
+  list.innerHTML = filtered.length
+    ? renderCardList(filtered)
+    : '<div class="empty">未找到匹配的 skill<br><button class="btn btn-s skill-empty-reset" onclick="document.getElementById(\'search-input\').value=\'\';filterList(\'\');">重置搜索</button></div>';
 }
 
 // ── Markdown 渲染（极简：h1-h3 / code / list / link / bold） ──
@@ -618,6 +677,12 @@ function toggleTheme() {
   API_KEY = localStorage.getItem('api_key') || prompt('请输入 API Key:') || '';
   if (API_KEY) localStorage.setItem('api_key', API_KEY);
   window.addEventListener('hashchange', route);
+  // F. 点击空白收起展开卡片
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    if (target.closest && target.closest('.skill-card')) return;
+    collapseAllCards();
+  });
   route();
 })();
 `;
@@ -667,6 +732,11 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
 .search-box input::placeholder{color:var(--muted);}
 .search-box input:focus{border-color:var(--accent);box-shadow:0 0 20px var(--accent-glow);}
 .search-mode-btn{align-self:stretch;height:44px;}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;transition:all .2s;}
+.stat:hover{border-color:var(--accent);box-shadow:0 0 20px var(--accent-glow);transform:translateY(-1px);}
+.stat-num{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);line-height:1.1;}
+.stat-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px;}
 .filter-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
 .filter-tab{padding:8px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
 .filter-tab:hover{border-color:var(--accent);color:var(--text);}
@@ -676,23 +746,40 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
 
 #skill-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
 .skill-card{position:relative;overflow:hidden;padding:14px;display:flex;align-items:center;gap:12px;aspect-ratio:16/9;transition:all .25s;cursor:default;border-radius:var(--radius);animation:fadeInUp .5s ease both;}
+.skill-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--accent-glow) 0%,transparent 60%);opacity:0;transition:opacity .25s;pointer-events:none;z-index:0;}
+.skill-card:hover::before{opacity:1;}
 .skill-card:hover{border-color:var(--accent);box-shadow:0 8px 40px rgba(0,0,0,0.3),0 0 30px var(--accent-glow);transform:translateY(-4px);}
 .skill-card.expanded{aspect-ratio:auto;align-items:flex-start;transform:none;}
-.skill-card-icon{flex-shrink:0;width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent-dim),transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:var(--mono);font-size:22px;font-weight:700;}
-.skill-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.skill-card.expanded::before{opacity:1;}
+.skill-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.skill-card-icon{flex-shrink:0;width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent-dim),transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);position:relative;z-index:1;}
+.skill-card-icon svg{width:22px;height:22px;}
+.skill-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1;}
 .skill-card-head{display:flex;align-items:center;gap:6px;min-width:0;}
 .skill-name{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.skill-fork-badge{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:6px;background:rgba(79,255,176,.15);color:var(--accent);font-weight:700;letter-spacing:.05em;flex-shrink:0;}
 .skill-score{font-family:var(--mono);font-size:10px;padding:1px 6px;background:var(--accent-dim);color:var(--accent);border-radius:8px;flex-shrink:0;font-weight:700;}
 .skill-desc{font-size:12px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.skill-card-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:auto;font-size:10px;color:var(--muted);font-family:var(--mono);}
+.skill-card-footer .skill-date{margin-left:auto;}
 .skill-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--muted);}
 .skill-tag{padding:1px 6px;border-radius:8px;background:var(--border);font-family:var(--mono);font-size:10px;}
 .skill-author{font-family:var(--mono);color:var(--accent2);}
 .skill-version{font-family:var(--mono);}
-.skill-card-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .2s;}
+.skill-card-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .2s;z-index:2;}
 .skill-card:hover .skill-card-actions,.skill-card.expanded .skill-card-actions{opacity:1;}
 .skill-card-actions .btn-s{padding:4px 6px;}
-.skill-preview{grid-column:1/-1;width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:280px;overflow:auto;font-size:12px;line-height:1.6;}
+.skill-preview{grid-column:1/-1;width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:280px;overflow:auto;font-size:12px;line-height:1.6;position:relative;z-index:1;}
+.skill-detail{grid-column:1/-1;width:100%;max-height:0;overflow:hidden;opacity:0;transition:max-height .35s cubic-bezier(.4,0,.2,1),opacity .25s,padding .25s,margin .25s;border-top:1px solid transparent;margin-top:0;padding-top:0;position:relative;z-index:1;}
+.skill-card.expanded .skill-detail{max-height:520px;opacity:1;border-top-color:var(--border);margin-top:10px;padding-top:12px;}
+.skill-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px;font-size:11px;}
+.skill-detail-item{display:flex;flex-direction:column;gap:2px;}
+.skill-detail-label{color:var(--muted);font-size:10px;letter-spacing:.05em;}
+.skill-detail-value{color:var(--text);font-weight:600;font-family:var(--mono);word-break:break-all;}
+.skill-detail-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.skill-empty-reset{margin-top:10px;}
 #skill-list .skill-card{margin-bottom:0;}
+@media(max-width:768px){#skill-list{grid-template-columns:1fr;gap:10px;}.stat-num{font-size:18px;}.page{padding:16px 12px 60px;}}
 
 .version-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
 .version-item:last-child{border-bottom:none;}
