@@ -223,8 +223,8 @@ var PREVIEW_CACHE = {};
 async function togglePreview(id, btn) {
   var area = document.getElementById('prev-' + id);
   if (!area) return;
-  if (area.style.display !== 'none') { area.style.display = 'none'; btn.textContent = '' + icon('eye', 12) + ' 预览'; return; }
-  btn.textContent = '' + icon('clock', 12) + ' 加载…';
+  if (area.style.display !== 'none') { area.style.display = 'none'; btn.innerHTML = icon('eye', 12) + ' 预览'; return; }
+  btn.innerHTML = icon('clock', 12) + ' 加载…';
   btn.disabled = true;
   try {
     if (!PREVIEW_CACHE[id]) {
@@ -235,11 +235,11 @@ async function togglePreview(id, btn) {
     area.innerHTML = renderMarkdown(p.content)
       + (p.truncated ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted);font-size:11px;">已截断 (显示 ' + p.shownLines + '/' + p.totalLines + ' 行, ' + p.shownChars + '/' + p.totalChars + ' 字符) · <a href="#/skill/' + id + '" style="color:var(--accent);">查看完整 ' + icon('arrowRight', 12) + '</a></div>' : '');
     area.style.display = 'block';
-    btn.textContent = '' + icon('eyeOff', 12) + ' 收起';
+    btn.innerHTML = icon('eyeOff', 12) + ' 收起';
   } catch (e) {
     area.innerHTML = '<div style="color:var(--danger);">加载失败: ' + esc(e.message) + '</div>';
     area.style.display = 'block';
-    btn.textContent = '' + icon('eye', 12) + ' 重试';
+    btn.innerHTML = icon('eye', 12) + ' 重试';
   } finally {
     btn.disabled = false;
   }
@@ -273,7 +273,7 @@ async function renderDetail(el, id) {
     html += '<button class="btn btn-p" data-id="' + id + '" onclick="downloadVersion(this.dataset.id,0)">' + icon('download', 14) + ' 下载</button>';
     html += '<button class="btn btn-s" data-id="' + id + '" data-name="' + esc(skill.name) + '" onclick="copyInstall(this.dataset.id,this.dataset.name,this)">' + icon('copy', 12) + ' 复制 cURL</button>';
     html += '<button class="btn btn-s" data-id="' + id + '" onclick="copyContent(this.dataset.id,this)">' + icon('file', 14) + ' 复制内容</button>';
-    html += '<button class="btn btn-d" data-id="' + id + '" onclick="deleteSkill(this.dataset.id)">删除</button>';
+    html += '<button class="btn btn-d" data-id="' + id + '" onclick="deleteSkill(this.dataset.id)">' + icon('trash', 14) + '删除</button>';
     html += '</div></div></div>';
 
     html += '<div class="card"><div class="card-title">Version History (' + (skill.versions||[]).length + ')</div>';
@@ -336,13 +336,13 @@ async function copyInstall(id, name, btn) {
 }
 
 async function copyContent(id, btn) {
-  btn.textContent = '' + icon('clock', 12) + '';
+  btn.innerHTML = icon('clock', 12) + '';
   try {
     var res = await api('GET', '/api/skills/' + id + '/preview?chars=20000&lines=500');
     await copyText(res.content, btn, '已复制 SKILL.md 内容');
   } catch (e) {
     toast('复制失败: ' + e.message, true);
-    btn.textContent = '' + icon('file', 14) + ' 复制内容';
+    btn.innerHTML = icon('file', 14) + ' 复制内容';
   }
 }
 
@@ -362,7 +362,7 @@ async function copyText(text, btn, okMsg) {
       document.body.removeChild(ta);
     }
     toast(okMsg);
-    if (btn) { var orig = btn.textContent; btn.textContent = '' + icon('check', 12) + ' 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    if (btn) { var orig = btn.innerHTML; btn.innerHTML = icon('check', 12) + ' 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
   } catch (e) {
     toast('复制失败: ' + e.message, true);
   }
@@ -654,8 +654,8 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
   <div class="logo" onclick="navigate('/')">Skills<span>Sub</span></div>
   <div class="topbar-right">
     <button class="btn btn-p" onclick="navigate('/publish')">+ 发布 Skill</button>
-    <button class="btn btn-s" onclick="navigate('/guide')">📖 教程</button>
-    <button class="btn btn-s" id="theme-btn" onclick="toggleTheme()">🌓</button>
+    <button class="btn btn-s" onclick="navigate('/guide')">${icon('book', 16)} 教程</button>
+    <button class="btn btn-s" id="theme-btn" onclick="toggleTheme()" aria-label="主题切换">${icon('moon', 16)}</button>
   </div>
 </div>
 
