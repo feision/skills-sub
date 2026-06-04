@@ -7,13 +7,7 @@
   "kv_namespaces": [
     {
       "binding": "SKILLS_KV",
-      "id": "skills-sub-kv-dev"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "SKILLS_R2",
-      "bucket_name": "skills-sub-r2-dev"
+      "id": "6dc2662d11054d628e0ac8e9a5716424"
     }
   ],
   "vars": {

@@ -1,30 +1,27 @@
-// storage.ts — KV + R2 操作封装
+// storage.ts — KV 操作封装（文件内容也存 KV）
 
 import type { Env, SkillMeta, SkillVersion, SkillListItem } from "./types";
 
 // ── KV Keys ──
 const kSkill = (id: string) => `skill:${id}`;
 const kVersion = (id: string, v: number) => `skill:${id}:v${v}`;
+const kContent = (id: string, v: number) => `content:${id}:v${v}`;
+const kDiff = (id: string, v: number) => `diff:${id}:v${v}`;
 const kIndex = "index:skills";
 const kAuthorIndex = (author: string) => `index:author:${author}`;
 const kTagIndex = (tag: string) => `index:tag:${tag}`;
-
-// ── R2 Keys ──
-const r2Key = (id: string, v: number) => `skills/${id}/v${v}.md`;
-const r2DiffKey = (id: string, v: number) => `skills/${id}/v${v}.diff`;
 
 // ── Skill CRUD ──
 
 export async function createSkill(env: Env, meta: SkillMeta, content: string, message: string): Promise<SkillVersion> {
   const version = 1;
-  const r2k = r2Key(meta.id, version);
   const now = new Date().toISOString();
 
-  // 写 R2
-  await env.SKILLS_R2.put(r2k, content);
+  // 写文件内容到 KV
+  await env.SKILLS_KV.put(kContent(meta.id, version), content);
 
   // 写版本元数据
-  const ver: SkillVersion = { version, message, createdAt: now, r2Key: r2k, size: new TextEncoder().encode(content).length };
+  const ver: SkillVersion = { version, message, createdAt: now, size: new TextEncoder().encode(content).length };
   await env.SKILLS_KV.put(kVersion(meta.id, version), JSON.stringify(ver));
 
   // 写 skill 元数据
@@ -45,21 +42,20 @@ export async function updateSkill(env: Env, id: string, content: string, message
   if (!meta) return null;
 
   const version = meta.latestVersion + 1;
-  const r2k = r2Key(id, version);
   const now = new Date().toISOString();
 
   // 读旧版本生成 diff
-  const oldContent = await readR2(env, r2Key(id, version - 1));
+  const oldContent = await readContent(env, id, version - 1);
   if (oldContent !== null) {
     const diff = generateDiff(oldContent, content);
-    await env.SKILLS_R2.put(r2DiffKey(id, version), diff);
+    await env.SKILLS_KV.put(kDiff(id, version), diff);
   }
 
-  // 写新版本到 R2
-  await env.SKILLS_R2.put(r2k, content);
+  // 写新版本到 KV
+  await env.SKILLS_KV.put(kContent(id, version), content);
 
   // 写版本元数据
-  const ver: SkillVersion = { version, message, createdAt: now, r2Key: r2k, size: new TextEncoder().encode(content).length };
+  const ver: SkillVersion = { version, message, createdAt: now, size: new TextEncoder().encode(content).length };
   await env.SKILLS_KV.put(kVersion(id, version), JSON.stringify(ver));
 
   // 更新 skill 元数据
@@ -79,16 +75,12 @@ export async function deleteSkill(env: Env, id: string): Promise<boolean> {
   const meta = await getSkillMeta(env, id);
   if (!meta) return false;
 
-  // 删 KV
+  // 删所有 KV 数据
   await env.SKILLS_KV.delete(kSkill(id));
   for (let v = 1; v <= meta.latestVersion; v++) {
     await env.SKILLS_KV.delete(kVersion(id, v));
-  }
-
-  // 删 R2
-  for (let v = 1; v <= meta.latestVersion; v++) {
-    await env.SKILLS_R2.delete(r2Key(id, v));
-    await env.SKILLS_R2.delete(r2DiffKey(id, v));
+    await env.SKILLS_KV.delete(kContent(id, v));
+    await env.SKILLS_KV.delete(kDiff(id, v));
   }
 
   // 从索引移除
@@ -117,23 +109,22 @@ export async function listVersions(env: Env, id: string): Promise<SkillVersion[]
   return versions.reverse();
 }
 
-export async function readR2(env: Env, key: string): Promise<string | null> {
-  const obj = await env.SKILLS_R2.get(key);
-  return obj ? await obj.text() : null;
+export async function readContent(env: Env, id: string, v: number): Promise<string | null> {
+  return await env.SKILLS_KV.get(kContent(id, v));
 }
 
 export async function downloadSkill(env: Env, id: string, version?: number): Promise<{ content: string; contentType: string } | null> {
   const meta = await getSkillMeta(env, id);
   if (meta) {
     const v = version || meta.latestVersion;
-    const content = await readR2(env, r2Key(id, v));
+    const content = await readContent(env, id, v);
     if (content) return { content, contentType: "text/markdown; charset=utf-8" };
   }
   return null;
 }
 
 export async function getDiff(env: Env, id: string, v: number): Promise<string | null> {
-  return readR2(env, r2DiffKey(id, v));
+  return await env.SKILLS_KV.get(kDiff(id, v));
 }
 
 // ── 列表/搜索 ──

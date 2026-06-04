@@ -40,6 +40,5 @@ export interface DiffLine {
 
 export interface Env {
   SKILLS_KV: KVNamespace;
-  SKILLS_R2: R2Bucket;
   API_KEY: string;
 }
