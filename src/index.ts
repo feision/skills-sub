@@ -22,8 +22,47 @@ function html(body: string) {
 
 // ── SPA 前端 ──
 
+// SVG icon 库（24x24 viewBox, Heroicons outline 风格）
+// 在 buildPage 编译期 + SCRIPT_BODY 运行期共享
+const ICONS_TS: Record<string, string> = {
+  plus: '<path d="M12 4.5v15m7.5-7.5h-15"/>',
+  arrowLeft: '<path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>',
+  arrowRight: '<path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>',
+  download: '<path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>',
+  book: '<path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>',
+  moon: '<path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
+  file: '<path d="M14.25 2.25H6a2.25 2.25 0 00-2.25 2.25v15a2.25 2.25 0 002.25 2.25h12a2.25 2.25 0 002.25-2.25V8.25L14.25 2.25z"/><path d="M14.25 2.25v4.5a1.5 1.5 0 001.5 1.5h4.5"/><path d="M8.25 13.5h7.5M8.25 16.5h4.5"/>',
+  eye: '<path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>',
+  check: '<path d="M4.5 12.75l6 6 9-13.5"/>',
+  search: '<circle cx="11" cy="11" r="7.5"/><path d="M21 21l-5.197-5.197"/>',
+  brain: '<path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>',
+  key: '<path d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>',
+  package: '<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/>',
+  refresh: '<path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>',
+  trash: '<path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>',
+  signal: '<path d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.789m13.788 0c3.808 3.808 3.808 9.981 0 13.79M12 12h.008v.007H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>',
+  robot: '<path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>',
+  clock: '<path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+};
+
+function icon(name: string, size = 14): string {
+  const path = ICONS_TS[name];
+  if (!path) return "";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;display:inline-block;">${path}</svg>`;
+}
+
 
 const SCRIPT_BODY = String.raw`
+var ICONS = ${JSON.stringify(ICONS_TS)};
+function icon(name, size) {
+  size = size || 14;
+  var path = ICONS[name];
+  if (!path) return '';
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;display:inline-block;">' + path + '</svg>';
+}
+
 var API_KEY = '';
 var ROUTES = {};
 
@@ -55,7 +94,7 @@ async function renderHome(el) {
     var html = '<div class="card-title">Browse Skills</div>';
     html += '<div class="search-bar">';
     html += '<input id="search-input" placeholder="搜索 skill..." oninput="onSearchInput(this.value)" style="flex:1;">';
-    html += '<button class="btn btn-s" id="search-mode-btn" onclick="toggleSearchMode()" style="padding:8px 12px;font-size:11px;">🔍 关键词</button>';
+    html += '<button class="btn btn-s" id="search-mode-btn" onclick="toggleSearchMode()" style="padding:8px 12px;font-size:11px;">' + icon('search', 12) + ' 关键词</button>';
     html += '</div>';
     html += '<div id="search-status" class="empty" style="font-size:11px;padding:8px;display:none;"></div>';
     html += '<div id="skill-list">';
@@ -81,8 +120,8 @@ function renderSkillCard(s) {
     + tags
     + '</div></div>'
     + '<div style="margin-top:10px;display:flex;gap:6px;">'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="togglePreview(this.dataset.id,this)" style="padding:4px 10px;font-size:11px;">👁 预览</button>'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="navigate(\'/skill/\'+this.dataset.id)" style="padding:4px 10px;font-size:11px;">详情 →</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="togglePreview(this.dataset.id,this)" style="padding:4px 10px;font-size:11px;">' + icon('eye', 12) + ' 预览</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="navigate(\'/skill/\'+this.dataset.id)" style="padding:4px 10px;font-size:11px;">详情 ' + icon('arrowRight', 12) + '</button>'
     + '</div>'
     + '<div class="skill-preview" id="prev-' + s.id + '" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:300px;overflow:auto;font-size:12px;line-height:1.6;"></div>'
     + '</div>';
@@ -91,7 +130,7 @@ function renderSkillCard(s) {
 function toggleSearchMode() {
   SEARCH_MODE = SEARCH_MODE === 'keyword' ? 'semantic' : 'keyword';
   var btn = document.getElementById('search-mode-btn');
-  if (btn) btn.textContent = SEARCH_MODE === 'keyword' ? '🔍 关键词' : '🧠 语义';
+  if (btn) btn.textContent = SEARCH_MODE === 'keyword' ? '' + icon('search', 12) + ' 关键词' : '' + icon('brain', 12) + ' 语义';
   var input = document.getElementById('search-input');
   if (input) onSearchInput(input.value);
 }
@@ -184,8 +223,8 @@ var PREVIEW_CACHE = {};
 async function togglePreview(id, btn) {
   var area = document.getElementById('prev-' + id);
   if (!area) return;
-  if (area.style.display !== 'none') { area.style.display = 'none'; btn.textContent = '👁 预览'; return; }
-  btn.textContent = '⏳ 加载…';
+  if (area.style.display !== 'none') { area.style.display = 'none'; btn.textContent = '' + icon('eye', 12) + ' 预览'; return; }
+  btn.textContent = '' + icon('clock', 12) + ' 加载…';
   btn.disabled = true;
   try {
     if (!PREVIEW_CACHE[id]) {
@@ -194,13 +233,13 @@ async function togglePreview(id, btn) {
     }
     var p = PREVIEW_CACHE[id];
     area.innerHTML = renderMarkdown(p.content)
-      + (p.truncated ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted);font-size:11px;">已截断 (显示 ' + p.shownLines + '/' + p.totalLines + ' 行, ' + p.shownChars + '/' + p.totalChars + ' 字符) · <a href="#/skill/' + id + '" style="color:var(--accent);">查看完整 →</a></div>' : '');
+      + (p.truncated ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted);font-size:11px;">已截断 (显示 ' + p.shownLines + '/' + p.totalLines + ' 行, ' + p.shownChars + '/' + p.totalChars + ' 字符) · <a href="#/skill/' + id + '" style="color:var(--accent);">查看完整 ' + icon('arrowRight', 12) + '</a></div>' : '');
     area.style.display = 'block';
-    btn.textContent = '🙈 收起';
+    btn.textContent = '' + icon('eyeOff', 12) + ' 收起';
   } catch (e) {
     area.innerHTML = '<div style="color:var(--danger);">加载失败: ' + esc(e.message) + '</div>';
     area.style.display = 'block';
-    btn.textContent = '👁 重试';
+    btn.textContent = '' + icon('eye', 12) + ' 重试';
   } finally {
     btn.disabled = false;
   }
@@ -224,16 +263,16 @@ async function renderDetail(el, id) {
 
     var tags = (skill.tags||[]).map(function(t){ return '<span class="skill-tag">#'+t+'</span>'; }).join(' ');
 
-    var html = '<div class="back-link" onclick="navigate(\'/\')">← 返回列表</div>';
+    var html = '<div class="back-link" onclick="navigate(\'/\')">' + icon('arrowLeft', 12) + ' 返回列表</div>';
     html += '<div class="card">';
     html += '<div style="display:flex;justify-content:space-between;align-items:start;">';
     html += '<div><div class="skill-name" style="font-size:20px;">' + esc(skill.name) + '</div>';
     html += '<div class="skill-desc" style="margin-top:6px;">' + esc(skill.description) + '</div>';
     html += '<div class="skill-meta" style="margin-top:8px;"><span class="skill-author">@' + esc(skill.author) + '</span> ' + tags + '</div></div>';
     html += '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">';
-    html += '<button class="btn btn-p" data-id="' + id + '" onclick="downloadVersion(this.dataset.id,0)">⬇ 下载</button>';
-    html += '<button class="btn btn-s" data-id="' + id + '" data-name="' + esc(skill.name) + '" onclick="copyInstall(this.dataset.id,this.dataset.name,this)">📋 复制 cURL</button>';
-    html += '<button class="btn btn-s" data-id="' + id + '" onclick="copyContent(this.dataset.id,this)">📄 复制内容</button>';
+    html += '<button class="btn btn-p" data-id="' + id + '" onclick="downloadVersion(this.dataset.id,0)">' + icon('download', 14) + ' 下载</button>';
+    html += '<button class="btn btn-s" data-id="' + id + '" data-name="' + esc(skill.name) + '" onclick="copyInstall(this.dataset.id,this.dataset.name,this)">' + icon('copy', 12) + ' 复制 cURL</button>';
+    html += '<button class="btn btn-s" data-id="' + id + '" onclick="copyContent(this.dataset.id,this)">' + icon('file', 14) + ' 复制内容</button>';
     html += '<button class="btn btn-d" data-id="' + id + '" onclick="deleteSkill(this.dataset.id)">删除</button>';
     html += '</div></div></div>';
 
@@ -241,7 +280,7 @@ async function renderDetail(el, id) {
     html += versions || '<div class="empty">无版本记录</div>';
     html += '</div>';
 
-    html += '<div class="card"><div class="card-title">📄 Skill 内容 (v' + skill.latestVersion + ')</div><div id="content-area"><div class="empty">加载中...</div></div></div>';
+    html += '<div class="card"><div class="card-title">' + icon('file', 14) + ' Skill 内容 (v' + skill.latestVersion + ')</div><div id="content-area"><div class="empty">加载中...</div></div></div>';
 
     html += '<div id="diff-area"></div>';
     el.innerHTML = html;
@@ -297,13 +336,13 @@ async function copyInstall(id, name, btn) {
 }
 
 async function copyContent(id, btn) {
-  btn.textContent = '⏳';
+  btn.textContent = '' + icon('clock', 12) + '';
   try {
     var res = await api('GET', '/api/skills/' + id + '/preview?chars=20000&lines=500');
     await copyText(res.content, btn, '已复制 SKILL.md 内容');
   } catch (e) {
     toast('复制失败: ' + e.message, true);
-    btn.textContent = '📄 复制内容';
+    btn.textContent = '' + icon('file', 14) + ' 复制内容';
   }
 }
 
@@ -323,7 +362,7 @@ async function copyText(text, btn, okMsg) {
       document.body.removeChild(ta);
     }
     toast(okMsg);
-    if (btn) { var orig = btn.textContent; btn.textContent = '✅ 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    if (btn) { var orig = btn.textContent; btn.textContent = '' + icon('check', 12) + ' 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
   } catch (e) {
     toast('复制失败: ' + e.message, true);
   }
@@ -340,7 +379,7 @@ async function deleteSkill(id) {
 
 // ── 发布页 ──
 function renderPublish(el) {
-  el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">← 返回列表</div>'
+  el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">' + icon('arrowLeft', 12) + ' 返回列表</div>'
     + '<div class="card"><div class="card-title">发布 Skill</div>'
     + '<div class="form-row"><label>名称 *</label><input id="p-name" placeholder="my-awesome-skill"></div>'
     + '<div class="form-row"><label>描述</label><input id="p-desc" placeholder="一句话描述这个 skill"></div>'
@@ -354,51 +393,51 @@ function renderPublish(el) {
 
 // ── 教程页 ──
 function renderGuide(el) {
-  el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">← 返回列表</div>'
-    + '<div class="card"><div class="card-title">📖 Skills Sub 使用教程</div>'
+  el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">' + icon('arrowLeft', 12) + ' 返回列表</div>'
+    + '<div class="card"><div class="card-title">' + icon('book', 14) + ' Skills Sub 使用教程</div>'
     + '<div class="skill-desc" style="margin-bottom:20px;">Skills Sub 是一个 Claude Code Skills 分享平台。读操作全部公开，发布/更新/删除需要 API Key。内置语义搜索（bge-m3 多语 embedding）。</div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔑 API Key</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('key', 14) + ' API Key</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>首次点击「+ 发布 Skill」、「删除」或复制内容时，浏览器会弹窗让你输入 API Key。</p>'
     + '<p>Key 保存到 localStorage，之后不再问。清除方法：<code style="font-family:var(--mono);font-size:12px;color:var(--accent);">localStorage.removeItem("api_key")</code></p>'
     + '<p>读操作（浏览、搜索、预览、下载）无需 Key，<strong>任何 Agent 可直接调用</strong>。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📦 发布 Skill</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('package', 14) + ' 发布 Skill</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>1. 点「+ 发布 Skill」</p>'
     + '<p>2. 名称（如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">my-weather-skill</code>）、描述、作者、标签（逗号分隔）</p>'
-    + '<p>3. 粘贴 SKILL.md 全文 → 发布</p>'
+    + '<p>3. 粘贴 SKILL.md 全文 ' + icon('arrowRight', 12) + ' 发布</p>'
     + '<p>发布成功后自动 embed 进 Vectorize，秒级可被语义搜索检索到。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔍 浏览与搜索</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('search', 12) + ' 浏览与搜索</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>• <strong>关键词模式</strong>（默认）：客户端过滤 name/description</p>'
-    + '<p>• <strong>语义模式</strong>：点搜索框右侧「🔍 关键词」→「🧠 语义」切换，用自然语言描述需求（中文/英文均可）</p>'
+    + '<p>• <strong>语义模式</strong>：点搜索框右侧「' + icon('search', 12) + ' 关键词」' + icon('arrowRight', 12) + '「' + icon('brain', 12) + ' 语义」切换，用自然语言描述需求（中文/英文均可）</p>'
     + '<p>语义搜索走 CF Vectorize + bge-m3，召回按相似度%排序</p>'
-    + '<p>• 首页点「👁 预览」inline 展开前 30 行 markdown</p>'
+    + '<p>• 首页点「' + icon('eye', 12) + ' 预览」inline 展开前 30 行 markdown</p>'
     + '<p>• 点卡片进详情：完整内容渲染 + 版本历史 + diff</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">⬇️ 下载与安装</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('download', 14) + '️ 下载与安装</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>详情页三个按钮：</p>'
-    + '<p>• <strong>⬇ 下载</strong>：浏览器下载 SKILL.md</p>'
-    + '<p>• <strong>📋 复制 cURL</strong>：一键复制安装命令，agent 粘到 shell 就装好：</p>'
+    + '<p>• <strong>' + icon('download', 14) + ' 下载</strong>：浏览器下载 SKILL.md</p>'
+    + '<p>• <strong>' + icon('copy', 12) + ' 复制 cURL</strong>：一键复制安装命令，agent 粘到 shell 就装好：</p>'
     + '<div class="diff-view" style="margin:8px 0;">mkdir -p ~/.claude/skills/NAME && curl -L URL -o ~/.claude/skills/NAME/SKILL.md</div>'
-    + '<p>• <strong>📄 复制内容</strong>：复制 SKILL.md 全文到剪贴板</p>'
+    + '<p>• <strong>' + icon('file', 14) + ' 复制内容</strong>：复制 SKILL.md 全文到剪贴板</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔄 更新 Skill</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('refresh', 14) + ' 更新 Skill</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>详情页的「复制 cURL」按钮旁暂未提供 update UI。当前通过 API PUT：</p>'
     + '<div class="diff-view" style="margin:8px 0;">curl -X PUT -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \\<br>  -d \'{"content":"# new version","message":"fix typo"}\' \\<br>  https://skills-sub.ducksaylow.workers.dev/api/skills/ID</div>'
     + '<p>每次更新自动 embed 到向量索引。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🤖 Agent 集成</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('robot', 14) + ' Agent 集成</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p>Agent 可用 GET 接口自给自足：</p>'
     + '<p>1. 用 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">/api/skills/semantic-search?q=...</code> 发现相关 skill</p>'
@@ -407,7 +446,7 @@ function renderGuide(el) {
     + '<p>无需 API Key 即可完成整套流程。</p>'
     + '</div></div>'
 
-    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📡 API 快速参考</h3>'
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">' + icon('signal', 14) + ' API 快速参考</h3>'
     + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
     + '<p><strong>读操作（公开，无需 Key）</strong>：</p>'
     + '<div class="diff-view" style="margin:8px 0; font-size:11px;">'
@@ -450,7 +489,7 @@ function renderGuide(el) {
     + '</div></div>'
 
     + '<div style="text-align:center;margin-top:30px;">'
-    + '<button class="btn btn-p" onclick="navigate(\'/\')" style="padding:12px 24px;">开始浏览 Skills →</button>'
+    + '<button class="btn btn-p" onclick="navigate(\'/\')" style="padding:12px 24px;">开始浏览 Skills ' + icon('arrowRight', 12) + '</button>'
     + '</div>'
 
     + '</div>';
