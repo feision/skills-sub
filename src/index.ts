@@ -45,6 +45,7 @@ const ICONS_TS: Record<string, string> = {
   signal: '<path d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.789m13.788 0c3.808 3.808 3.808 9.981 0 13.79M12 12h.008v.007H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>',
   robot: '<path d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>',
   clock: '<path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+  logo: '<rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="10.5" width="14" height="3" rx="1"/><rect x="3" y="17" width="14" height="3" rx="1"/><path d="M19 2l.8 1.6 1.6.8-1.6.8L19 6.8l-.8-1.6-1.6-.8 1.6-.8z"/>',
 };
 
 function icon(name: string, size = 14): string {
@@ -577,7 +578,8 @@ function buildPage(): string {
 body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;}
 
 .topbar{position:sticky;top:0;z-index:100;background:var(--topbar-bg,rgba(11,13,17,.92));backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;}
-.logo{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);cursor:pointer;}
+.logo{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;}
+.logo svg{margin-right:8px;flex-shrink:0;}
 .logo span{color:var(--text);font-weight:400;font-size:14px;margin-left:8px;}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
 .btn{padding:8px 16px;border-radius:10px;font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
@@ -651,7 +653,7 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
 </head>
 <body>
 <div class="topbar">
-  <div class="logo" onclick="navigate('/')">Skills<span>Sub</span></div>
+  <div class="logo" onclick="navigate('/')">${icon('logo', 22)}Skills<span>Sub</span></div>
   <div class="topbar-right">
     <button class="btn btn-p" onclick="navigate('/publish')">+ 发布 Skill</button>
     <button class="btn btn-s" onclick="navigate('/guide')">${icon('book', 16)} 教程</button>
