@@ -40,5 +40,7 @@ export interface DiffLine {
 
 export interface Env {
   SKILLS_KV: KVNamespace;
+  VECTORIZE: VectorizeIndex;
+  AI: Ai;
   API_KEY: string;
 }

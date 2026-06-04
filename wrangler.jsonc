@@ -10,6 +10,15 @@
       "id": "6dc2662d11054d628e0ac8e9a5716424"
     }
   ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "skills-index"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     "API_KEY": "dev-key-change-me"
   }
