@@ -85,6 +85,7 @@ function route() {
 var SEARCH_MODE = 'keyword'; // 'keyword' | 'semantic'
 var SEMANTIC_RESULTS = null;
 var ALL_SKILLS = [];
+var FILTER_TAB = 'all'; // 'all' | 'human' | 'agent'
 
 async function renderHome(el) {
   el.innerHTML = '<div class="empty">加载中...</div>';
@@ -92,14 +93,16 @@ async function renderHome(el) {
     var res = await api('GET', '/api/skills');
     ALL_SKILLS = res.skills || [];
     SEMANTIC_RESULTS = null;
+    FILTER_TAB = 'all';
     var html = '<div class="card-title">Browse Skills</div>';
     html += '<div class="search-bar">';
-    html += '<input id="search-input" placeholder="搜索 skill..." oninput="onSearchInput(this.value)" style="flex:1;">';
-    html += '<button class="btn btn-s" id="search-mode-btn" onclick="toggleSearchMode()" style="padding:8px 12px;font-size:11px;">' + icon('search', 12) + ' 关键词</button>';
+    html += '<div class="search-box">' + icon('search', 18) + '<input id="search-input" placeholder="搜索 skill..." oninput="onSearchInput(this.value)"></div>';
+    html += '<button class="btn btn-s search-mode-btn" id="search-mode-btn" onclick="toggleSearchMode()">' + icon('search', 12) + ' 关键词</button>';
     html += '</div>';
+    html += renderFilterTabs();
     html += '<div id="search-status" class="empty" style="font-size:11px;padding:8px;display:none;"></div>';
     html += '<div id="skill-list">';
-    html += ALL_SKILLS.map(renderSkillCard).join('');
+    html += renderCardList(ALL_SKILLS);
     html += '</div>';
     if (!ALL_SKILLS.length) html += '<div class="empty">暂无 Skill，点击上方发布第一个</div>';
     el.innerHTML = html;
@@ -108,11 +111,46 @@ async function renderHome(el) {
   }
 }
 
-function renderSkillCard(s) {
+function renderFilterTabs() {
+  var total = ALL_SKILLS.length;
+  var human = ALL_SKILLS.filter(function(s){ return s.authorType === 'human'; }).length;
+  var agent = ALL_SKILLS.filter(function(s){ return s.authorType === 'agent'; }).length;
+  return '<div class="filter-tabs">'
+    + filterTab('all', '全部', total)
+    + filterTab('human', '原创', human)
+    + filterTab('agent', 'Fork', agent)
+    + '</div>';
+}
+
+function filterTab(key, label, count) {
+  var active = FILTER_TAB === key ? ' active' : '';
+  return '<button class="filter-tab' + active + '" data-tab="' + key + '" onclick="setFilterTab(\'' + key + '\')">'
+    + esc(label) + ' <span class="filter-tab-count">' + count + '</span></button>';
+}
+
+function setFilterTab(key) {
+  FILTER_TAB = key;
+  // 重渲染 tabs + 列表
+  var tabsEl = document.querySelector('.filter-tabs');
+  if (tabsEl) tabsEl.outerHTML = renderFilterTabs();
+  var list = document.getElementById('skill-list');
+  if (!list) return;
+  var src = SEMANTIC_RESULTS || ALL_SKILLS;
+  var filtered = key === 'all' ? src : src.filter(function(s){ return s.authorType === key; });
+  list.innerHTML = filtered.length ? renderCardList(filtered) : '<div class="empty">该分类暂无 Skill</div>';
+}
+
+function renderCardList(arr) {
+  return arr.map(function(s, i){ return renderSkillCard(s, i); }).join('');
+}
+
+function renderSkillCard(s, idx) {
+  idx = idx || 0;
+  var delay = Math.min(idx, 6) * 0.04;
   var tags = (s.tags||[]).slice(0, 3).map(function(t){ return '<span class="skill-tag">#' + esc(t) + '</span>'; }).join('');
   var score = s.score != null ? '<span class="skill-score">' + (s.score*100).toFixed(0) + '%</span>' : '';
   var letter = ((s.name || '?').charAt(0) || '?').toUpperCase();
-  return '<div class="card skill-card" data-id="' + s.id + '">'
+  return '<div class="card skill-card" data-id="' + s.id + '" style="animation-delay:' + delay + 's;">'
     + '<div class="skill-card-icon">' + letter + '</div>'
     + '<div class="skill-card-body">'
     + '<div class="skill-card-head">'
@@ -155,18 +193,20 @@ async function doSemanticSearch(q) {
   q = (q || '').trim();
   var list = document.getElementById('skill-list');
   if (!q) {
-    list.innerHTML = ALL_SKILLS.map(renderSkillCard).join('');
+    SEMANTIC_RESULTS = null;
+    list.innerHTML = renderCardList(ALL_SKILLS);
     hideStatus();
     return;
   }
   try {
     var res = await api('GET', '/api/skills/semantic-search?q=' + encodeURIComponent(q) + '&topK=20');
-    var results = res.results || [];
-    list.innerHTML = results.length
-      ? results.map(renderSkillCard).join('')
+    SEMANTIC_RESULTS = res.results || [];
+    var src = FILTER_TAB === 'all' ? SEMANTIC_RESULTS : SEMANTIC_RESULTS.filter(function(s){ return s.authorType === FILTER_TAB; });
+    list.innerHTML = src.length
+      ? renderCardList(src)
       : '<div class="empty">未找到匹配的 skill</div>';
     var status = document.getElementById('search-status');
-    if (status) status.textContent = '语义搜索 "' + esc(q) + '" · 命中 ' + results.length + ' 个';
+    if (status) status.textContent = '语义搜索 "' + esc(q) + '" · 命中 ' + SEMANTIC_RESULTS.length + ' 个';
   } catch(e) {
     var status = document.getElementById('search-status');
     if (status) status.textContent = '搜索失败: ' + e.message;
@@ -180,10 +220,16 @@ function hideStatus() {
 
 function filterList(q) {
   q = q.toLowerCase();
-  document.querySelectorAll('.skill-card').forEach(function(c) {
-    var text = c.textContent.toLowerCase();
-    c.style.display = text.indexOf(q) >= 0 ? '' : 'none';
-  });
+  var src = SEMANTIC_RESULTS || ALL_SKILLS;
+  var filtered = FILTER_TAB === 'all' ? src : src.filter(function(s){ return s.authorType === FILTER_TAB; });
+  var list = document.getElementById('skill-list');
+  if (q) {
+    filtered = filtered.filter(function(s){
+      var text = ((s.name||'') + ' ' + (s.description||'') + ' ' + (s.author||'') + ' ' + ((s.tags||[]).join(' '))).toLowerCase();
+      return text.indexOf(q) >= 0;
+    });
+  }
+  list.innerHTML = filtered.length ? renderCardList(filtered) : '<div class="empty">未找到匹配的 skill</div>';
 }
 
 // ── Markdown 渲染（极简：h1-h3 / code / list / link / bold） ──
@@ -584,9 +630,10 @@ function buildPage(): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skills Sub</title>
 <style>
-:root{--bg:#0b0d11;--surface:#13161d;--surface2:#1a1e28;--border:#262c3a;--accent:#4fffb0;--accent2:#00b8ff;--danger:#ff4f6b;--warn:#ffb84f;--text:#e2e8f0;--muted:#64748b;--accent-dim:rgba(79,255,176,.1);--shadow:0 4px 20px rgba(0,0,0,0.3);--mono:'JetBrains Mono',monospace;--sans:'Inter','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;--btn-text:#000;}
-:root[data-theme='light']{--bg:#f4f7f9;--surface:#ffffff;--surface2:#f0f2f5;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--accent:#F38020;--accent-dim:rgba(243,128,32,.1);--btn-text:#ffffff;--shadow:0 4px 12px rgba(0,0,0,0.05);}
-@media(prefers-color-scheme:light){:root:not([data-theme='dark']){--bg:#f4f7f9;--surface:#ffffff;--surface2:#f0f2f5;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--accent:#F38020;--accent-dim:rgba(243,128,32,.1);--btn-text:#ffffff;--shadow:0 4px 12px rgba(0,0,0,0.05);}}
+:root{--bg:#0a0a0f;--surface:#16161f;--surface2:#1a1e28;--border:#262c3a;--accent:#4fffb0;--accent2:#00b8ff;--danger:#ff4f6b;--warn:#ffb84f;--text:#e2e8f0;--muted:#64748b;--accent-dim:rgba(79,255,176,.1);--accent-glow:rgba(79,255,176,.15);--shadow:0 4px 20px rgba(0,0,0,0.3);--mono:'JetBrains Mono',monospace;--sans:'Inter','PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;--btn-text:#000;--radius:16px;}
+:root[data-theme='light']{--bg:#f4f7f9;--surface:#ffffff;--surface2:#f0f2f5;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--accent:#F38020;--accent-dim:rgba(243,128,32,.1);--accent-glow:rgba(243,128,32,.18);--btn-text:#ffffff;--shadow:0 4px 12px rgba(0,0,0,0.05);}
+@media(prefers-color-scheme:light){:root:not([data-theme='dark']){--bg:#f4f7f9;--surface:#ffffff;--surface2:#f0f2f5;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--accent:#F38020;--accent-dim:rgba(243,128,32,.1);--accent-glow:rgba(243,128,32,.18);--btn-text:#ffffff;--shadow:0 4px 12px rgba(0,0,0,0.05);}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;}
 
@@ -604,8 +651,8 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 .btn-d:hover{background:rgba(255,79,107,.1);}
 
 .page{max-width:900px;margin:0 auto;padding:24px 20px 80px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;transition:all .2s;}
-.card:hover{border-color:var(--accent-dim);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;transition:all .25s;}
+.card:hover{border-color:var(--accent);box-shadow:0 8px 40px rgba(0,0,0,0.3),0 0 30px var(--accent-glow);transform:translateY(-2px);}
 .card-title{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
 
 input,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px 12px;outline:none;transition:border .2s;}
@@ -613,14 +660,25 @@ input:focus,textarea:focus{border-color:var(--accent);}
 textarea{min-height:200px;resize:vertical;font-size:12px;line-height:1.6;}
 label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;display:block;}
 
-.search-bar{display:flex;gap:8px;margin-bottom:20px;}
-.search-bar input{flex:1;}
+.search-bar{display:flex;gap:10px;margin-bottom:14px;}
+.search-box{flex:1;position:relative;}
+.search-box svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;}
+.search-box input{height:44px;padding:12px 16px 12px 42px;border-radius:12px;font-size:14px;}
+.search-box input::placeholder{color:var(--muted);}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 20px var(--accent-glow);}
+.search-mode-btn{align-self:stretch;height:44px;}
+.filter-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+.filter-tab{padding:8px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+.filter-tab:hover{border-color:var(--accent);color:var(--text);}
+.filter-tab.active{background:var(--accent);color:var(--btn-text);border-color:var(--accent);}
+.filter-tab-count{font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(0,0,0,0.25);color:inherit;opacity:0.85;font-weight:700;}
+.filter-tab:not(.active) .filter-tab-count{background:var(--surface2);}
 
-#skill-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
-.skill-card{position:relative;overflow:hidden;padding:14px;display:flex;align-items:center;gap:12px;aspect-ratio:16/9;transition:all .2s;cursor:default;}
-.skill-card:hover{border-color:var(--accent);box-shadow:0 4px 20px var(--accent-dim);transform:translateY(-2px);}
-.skill-card.expanded{aspect-ratio:auto;align-items:flex-start;}
-.skill-card-icon{flex-shrink:0;width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--accent-dim),transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:var(--mono);font-size:22px;font-weight:700;}
+#skill-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.skill-card{position:relative;overflow:hidden;padding:14px;display:flex;align-items:center;gap:12px;aspect-ratio:16/9;transition:all .25s;cursor:default;border-radius:var(--radius);animation:fadeInUp .5s ease both;}
+.skill-card:hover{border-color:var(--accent);box-shadow:0 8px 40px rgba(0,0,0,0.3),0 0 30px var(--accent-glow);transform:translateY(-4px);}
+.skill-card.expanded{aspect-ratio:auto;align-items:flex-start;transform:none;}
+.skill-card-icon{flex-shrink:0;width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent-dim),transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:var(--mono);font-size:22px;font-weight:700;}
 .skill-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
 .skill-card-head{display:flex;align-items:center;gap:6px;min-width:0;}
 .skill-name{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
