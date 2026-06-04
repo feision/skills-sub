@@ -130,7 +130,7 @@ function renderSkillCard(s) {
 function toggleSearchMode() {
   SEARCH_MODE = SEARCH_MODE === 'keyword' ? 'semantic' : 'keyword';
   var btn = document.getElementById('search-mode-btn');
-  if (btn) btn.textContent = SEARCH_MODE === 'keyword' ? '' + icon('search', 12) + ' 关键词' : '' + icon('brain', 12) + ' 语义';
+  if (btn) btn.innerHTML = SEARCH_MODE === 'keyword' ? icon('search', 12) + ' 关键词' : icon('brain', 12) + ' 语义';
   var input = document.getElementById('search-input');
   if (input) onSearchInput(input.value);
 }
@@ -362,7 +362,7 @@ async function copyText(text, btn, okMsg) {
       document.body.removeChild(ta);
     }
     toast(okMsg);
-    if (btn) { var orig = btn.innerHTML; btn.innerHTML = icon('check', 12) + ' 已复制'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    if (btn) { var orig = btn.innerHTML; btn.innerHTML = icon('check', 12) + ' 已复制'; setTimeout(function(){ btn.innerHTML = orig; }, 1500); }
   } catch (e) {
     toast('复制失败: ' + e.message, true);
   }
