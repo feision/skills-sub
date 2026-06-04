@@ -1,4 +1,4 @@
-// storage.ts — KV 操作封装（文件内容也存 KV）
+// storage.ts — KV + Vectorize 操作封装
 
 import type { Env, SkillMeta, SkillVersion, SkillListItem } from "./types";
 
@@ -10,6 +10,66 @@ const kDiff = (id: string, v: number) => `diff:${id}:v${v}`;
 const kIndex = "index:skills";
 const kAuthorIndex = (author: string) => `index:author:${author}`;
 const kTagIndex = (tag: string) => `index:tag:${tag}`;
+
+// ── Vectorize helpers ──
+
+const EMBED_MODEL = "@cf/baai/bge-m3";
+// bge-m3 token limit ~8192, 3000 chars ≈ 1500-2000 zh tokens，留余量
+const EMBED_MAX_CHARS = 6000;
+
+function buildEmbedText(meta: SkillMeta, content: string): string {
+  return [meta.name, meta.description, content].join("\n").slice(0, EMBED_MAX_CHARS);
+}
+
+export async function embedText(env: Env, text: string): Promise<number[]> {
+  const result = await env.AI.run(EMBED_MODEL, { text: text.slice(0, EMBED_MAX_CHARS) }) as { data: number[][] };
+  return result.data[0];
+}
+
+export async function indexSkill(env: Env, meta: SkillMeta, content: string): Promise<void> {
+  const text = buildEmbedText(meta, content);
+  const values = await embedText(env, text);
+  await env.VECTORIZE.upsert([{
+    id: meta.id,
+    values,
+    metadata: {
+      name: meta.name,
+      description: meta.description,
+      author: meta.author,
+      tags: meta.tags,
+    },
+  }]);
+}
+
+export async function deindexSkill(env: Env, id: string): Promise<void> {
+  await env.VECTORIZE.deleteByIds([id]);
+}
+
+export interface SemanticHit {
+  id: string;
+  score: number;
+  name: string;
+  description: string;
+  author: string;
+  tags: string[];
+}
+
+export async function semanticSearch(env: Env, query: string, topK = 10): Promise<SemanticHit[]> {
+  if (!query.trim()) return [];
+  const values = await embedText(env, query);
+  const res = await env.VECTORIZE.query(values, { topK, returnMetadata: true });
+  return (res.matches || []).map(m => {
+    const md = (m.metadata || {}) as Record<string, unknown>;
+    return {
+      id: m.id,
+      score: m.score ?? 0,
+      name: String(md.name || ""),
+      description: String(md.description || ""),
+      author: String(md.author || ""),
+      tags: Array.isArray(md.tags) ? md.tags.map(String) : [],
+    };
+  });
+}
 
 // ── Skill CRUD ──
 
@@ -33,6 +93,10 @@ export async function createSkill(env: Env, meta: SkillMeta, content: string, me
   await addToIndex(env, kIndex, meta.id);
   await addToIndex(env, kAuthorIndex(meta.author), meta.id);
   for (const tag of meta.tags) await addToIndex(env, kTagIndex(tag), meta.id);
+
+  // 语义索引（失败不阻塞主流程）
+  try { await indexSkill(env, meta, content); }
+  catch (e) { console.error("indexSkill failed:", e); }
 
   return ver;
 }
@@ -63,6 +127,10 @@ export async function updateSkill(env: Env, id: string, content: string, message
   meta.updatedAt = now;
   await env.SKILLS_KV.put(kSkill(id), JSON.stringify(meta));
 
+  // 重新语义索引
+  try { await indexSkill(env, meta, content); }
+  catch (e) { console.error("indexSkill failed:", e); }
+
   return ver;
 }
 
@@ -87,6 +155,10 @@ export async function deleteSkill(env: Env, id: string): Promise<boolean> {
   await removeFromIndex(env, kIndex, id);
   await removeFromIndex(env, kAuthorIndex(meta.author), id);
   for (const tag of meta.tags) await removeFromIndex(env, kTagIndex(tag), id);
+
+  // 语义索引移除
+  try { await deindexSkill(env, id); }
+  catch (e) { console.error("deindexSkill failed:", e); }
 
   return true;
 }
