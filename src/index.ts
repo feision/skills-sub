@@ -109,22 +109,27 @@ async function renderHome(el) {
 }
 
 function renderSkillCard(s) {
-  var tags = (s.tags||[]).map(function(t){ return '<span class="skill-tag">#'+t+'</span>'; }).join('');
-  var score = s.score != null ? '<span class="skill-tag" style="background:var(--accent-dim);color:var(--accent);">' + (s.score*100).toFixed(0) + '%</span>' : '';
+  var tags = (s.tags||[]).slice(0, 3).map(function(t){ return '<span class="skill-tag">#' + esc(t) + '</span>'; }).join('');
+  var score = s.score != null ? '<span class="skill-score">' + (s.score*100).toFixed(0) + '%</span>' : '';
+  var letter = ((s.name || '?').charAt(0) || '?').toUpperCase();
   return '<div class="card skill-card" data-id="' + s.id + '">'
-    + '<div onclick="navigate(\'/skill/\'+this.dataset.id)" data-id="' + s.id + '">'
-    + '<div class="skill-name">' + esc(s.name) + score + '</div>'
+    + '<div class="skill-card-icon">' + letter + '</div>'
+    + '<div class="skill-card-body">'
+    + '<div class="skill-card-head">'
+    + '<div class="skill-name">' + esc(s.name) + '</div>'
+    + score
+    + '</div>'
     + '<div class="skill-desc">' + esc(s.description) + '</div>'
     + '<div class="skill-meta">'
     + '<span class="skill-author">@' + esc(s.author) + '</span>'
     + '<span class="skill-version">v' + s.latestVersion + '</span>'
     + tags
     + '</div></div>'
-    + '<div style="margin-top:10px;display:flex;gap:6px;">'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="togglePreview(this.dataset.id,this)" style="padding:4px 10px;font-size:11px;">' + icon('eye', 12) + ' 预览</button>'
-    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="navigate(\'/skill/\'+this.dataset.id)" style="padding:4px 10px;font-size:11px;">详情 ' + icon('arrowRight', 12) + '</button>'
+    + '<div class="skill-card-actions">'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="togglePreview(this.dataset.id,this)" title="预览">' + icon('eye', 12) + '</button>'
+    + '<button class="btn btn-s" data-id="' + s.id + '" onclick="navigate(\'/skill/\'+this.dataset.id)" title="详情">' + icon('arrowRight', 12) + '</button>'
     + '</div>'
-    + '<div class="skill-preview" id="prev-' + s.id + '" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:300px;overflow:auto;font-size:12px;line-height:1.6;"></div>'
+    + '<div class="skill-preview" id="prev-' + s.id + '" style="display:none;"></div>'
     + '</div>';
 }
 
@@ -223,9 +228,15 @@ function inlineMd(s) {
 var PREVIEW_CACHE = {};
 async function togglePreview(id, btn) {
   var area = document.getElementById('prev-' + id);
+  var card = btn.closest('.skill-card');
   if (!area) return;
-  if (area.style.display !== 'none') { area.style.display = 'none'; btn.innerHTML = icon('eye', 12) + ' 预览'; return; }
-  btn.innerHTML = icon('clock', 12) + ' 加载…';
+  if (area.style.display !== 'none') {
+    area.style.display = 'none';
+    if (card) card.classList.remove('expanded');
+    btn.innerHTML = icon('eye', 12);
+    return;
+  }
+  btn.innerHTML = icon('clock', 12);
   btn.disabled = true;
   try {
     if (!PREVIEW_CACHE[id]) {
@@ -236,11 +247,13 @@ async function togglePreview(id, btn) {
     area.innerHTML = renderMarkdown(p.content)
       + (p.truncated ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);color:var(--muted);font-size:11px;">已截断 (显示 ' + p.shownLines + '/' + p.totalLines + ' 行, ' + p.shownChars + '/' + p.totalChars + ' 字符) · <a href="#/skill/' + id + '" style="color:var(--accent);">查看完整 ' + icon('arrowRight', 12) + '</a></div>' : '');
     area.style.display = 'block';
-    btn.innerHTML = icon('eyeOff', 12) + ' 收起';
+    if (card) card.classList.add('expanded');
+    btn.innerHTML = icon('eyeOff', 12);
   } catch (e) {
     area.innerHTML = '<div style="color:var(--danger);">加载失败: ' + esc(e.message) + '</div>';
     area.style.display = 'block';
-    btn.innerHTML = icon('eye', 12) + ' 重试';
+    if (card) card.classList.add('expanded');
+    btn.innerHTML = icon('eye', 12);
   } finally {
     btn.disabled = false;
   }
@@ -603,14 +616,25 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
 .search-bar{display:flex;gap:8px;margin-bottom:20px;}
 .search-bar input{flex:1;}
 
-.skill-card{cursor:pointer;}
+#skill-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+.skill-card{position:relative;overflow:hidden;padding:14px;display:flex;align-items:center;gap:12px;aspect-ratio:16/9;transition:all .2s;cursor:default;}
 .skill-card:hover{border-color:var(--accent);box-shadow:0 4px 20px var(--accent-dim);transform:translateY(-2px);}
-.skill-name{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);margin-bottom:4px;}
-.skill-desc{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:8px;}
-.skill-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted);}
-.skill-tag{padding:2px 8px;border-radius:10px;background:var(--border);font-family:var(--mono);font-size:10px;}
+.skill-card.expanded{aspect-ratio:auto;align-items:flex-start;}
+.skill-card-icon{flex-shrink:0;width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--accent-dim),transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:var(--mono);font-size:22px;font-weight:700;}
+.skill-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.skill-card-head{display:flex;align-items:center;gap:6px;min-width:0;}
+.skill-name{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.skill-score{font-family:var(--mono);font-size:10px;padding:1px 6px;background:var(--accent-dim);color:var(--accent);border-radius:8px;flex-shrink:0;font-weight:700;}
+.skill-desc{font-size:12px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.skill-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--muted);}
+.skill-tag{padding:1px 6px;border-radius:8px;background:var(--border);font-family:var(--mono);font-size:10px;}
 .skill-author{font-family:var(--mono);color:var(--accent2);}
 .skill-version{font-family:var(--mono);}
+.skill-card-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .2s;}
+.skill-card:hover .skill-card-actions,.skill-card.expanded .skill-card-actions{opacity:1;}
+.skill-card-actions .btn-s{padding:4px 6px;}
+.skill-preview{grid-column:1/-1;width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;max-height:280px;overflow:auto;font-size:12px;line-height:1.6;}
+#skill-list .skill-card{margin-bottom:0;}
 
 .version-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
 .version-item:last-child{border-bottom:none;}
