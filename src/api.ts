@@ -4,6 +4,7 @@ import type { Env, SkillMeta, SkillListItem } from "./types";
 import {
   createSkill, updateSkill, getSkillMeta, deleteSkill,
   listSkills, getVersion, listVersions, downloadSkill, getDiff,
+  semanticSearch, indexSkill, readContent,
 } from "./storage";
 
 // ── 工具函数 ──
@@ -19,8 +20,12 @@ function bad(message: string) { return json({ ok: false, error: message }, { sta
 function notFound(message: string) { return json({ ok: false, error: message }, { status: 404 }); }
 
 function auth(request: Request, env: Env): boolean {
-  const auth = request.headers.get("Authorization");
-  return auth === `Bearer ${env.API_KEY}`;
+  const h = request.headers.get("Authorization");
+  return h === `Bearer ${env.API_KEY}`;
+}
+
+function requireAuth(request: Request, env: Env): Response | null {
+  return auth(request, env) ? null : new Response("Unauthorized", { status: 401 });
 }
 
 function genId(name: string): string {
@@ -36,8 +41,11 @@ export async function handleApi(request: Request, env: Env): Promise<Response | 
 
   if (parts[0] !== "api") return null;
 
-  // 鉴权
-  if (!auth(request, env)) return new Response("Unauthorized", { status: 401 });
+  // GET 公开，POST/PUT/DELETE 鉴权
+  if (method !== "GET" && method !== "HEAD") {
+    const denied = requireAuth(request, env);
+    if (denied) return denied;
+  }
 
   // GET /api/skills — 列表
   if (parts.length === 2 && parts[1] === "skills" && method === "GET") {
@@ -72,7 +80,7 @@ export async function handleApi(request: Request, env: Env): Promise<Response | 
   }
 
   // /api/skills/:id — 详情/更新/删除
-  if (parts.length === 3 && parts[1] === "skills") {
+  if (parts.length === 3 && parts[1] === "skills" && parts[2] !== "semantic-search") {
     const id = parts[2];
 
     if (method === "GET") {
@@ -102,31 +110,85 @@ export async function handleApi(request: Request, env: Env): Promise<Response | 
   }
 
   // GET /api/skills/:id/download — 下载
-  if (parts.length === 4 && parts[2] === "download" && method === "GET") {
+  if (parts.length === 4 && parts[1] === "skills" && parts[3] === "download" && method === "GET") {
     const v = url.searchParams.get("v") ? Number(url.searchParams.get("v")) : undefined;
-    const result = await downloadSkill(env, parts[1], v);
+    const result = await downloadSkill(env, parts[2], v);
     if (!result) return notFound("skill or version not found");
     return new Response(result.content, { headers: { "Content-Type": result.contentType, "Content-Disposition": `attachment; filename="SKILL.md"` } });
   }
 
+  // GET /api/skills/:id/preview?chars=500&lines=20 — 预览截断
+  if (parts.length === 4 && parts[1] === "skills" && parts[3] === "preview" && method === "GET") {
+    const maxChars = Math.min(Number(url.searchParams.get("chars") || 600), 4000);
+    const maxLines = Math.min(Number(url.searchParams.get("lines") || 30), 200);
+    const result = await downloadSkill(env, parts[2]);
+    if (!result) return notFound("skill not found");
+    const text = result.content;
+    const lines = text.split("\n");
+    let truncated = lines.slice(0, maxLines).join("\n");
+    if (truncated.length > maxChars) truncated = truncated.slice(0, maxChars);
+    const totalLines = lines.length;
+    const shownLines = Math.min(maxLines, totalLines);
+    return json({
+      content: truncated,
+      truncated: shownLines < totalLines || truncated.length < text.length,
+      totalLines,
+      totalChars: text.length,
+      shownLines,
+      shownChars: truncated.length,
+    });
+  }
+
   // GET /api/skills/:id/versions — 版本列表
-  if (parts.length === 4 && parts[3] === "versions" && method === "GET") {
-    const versions = await listVersions(env, parts[1]);
+  if (parts.length === 4 && parts[1] === "skills" && parts[3] === "versions" && method === "GET") {
+    const versions = await listVersions(env, parts[2]);
     return json({ versions });
   }
 
   // GET /api/skills/:id/versions/:v/diff — diff
-  if (parts.length === 5 && parts[3] === "versions" && parts[5] === "diff" && method === "GET") {
-    const diff = await getDiff(env, parts[1], Number(parts[4]));
+  if (parts.length === 6 && parts[1] === "skills" && parts[3] === "versions" && parts[5] === "diff" && method === "GET") {
+    const diff = await getDiff(env, parts[2], Number(parts[4]));
     if (diff === null) return notFound("diff not found");
     return new Response(diff, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
   // GET /api/skills/:id/versions/:v — 下载指定版本
-  if (parts.length === 5 && parts[3] === "versions" && method === "GET") {
-    const result = await downloadSkill(env, parts[1], Number(parts[4]));
+  if (parts.length === 5 && parts[1] === "skills" && parts[3] === "versions" && method === "GET") {
+    const result = await downloadSkill(env, parts[2], Number(parts[4]));
     if (!result) return notFound("version not found");
     return new Response(result.content, { headers: { "Content-Type": result.contentType } });
+  }
+
+  // GET /api/skills/semantic-search?q=...&topK=N — 语义搜索
+  if (parts.length === 3 && parts[1] === "skills" && parts[2] === "semantic-search" && method === "GET") {
+    const q = url.searchParams.get("q") || "";
+    const topK = Math.min(Number(url.searchParams.get("topK") || 10), 50);
+    try {
+      const hits = await semanticSearch(env, q, topK);
+      return json({ query: q, total: hits.length, results: hits });
+    } catch (e: any) {
+      return json({ ok: false, error: e.message, results: [] }, { status: 500 });
+    }
+  }
+
+  // POST /api/admin/reindex — 全量重建语义索引（需 API Key）
+  if (parts.length === 3 && parts[1] === "admin" && parts[2] === "reindex" && method === "POST") {
+    const skills = await listSkills(env, {});
+    let ok = 0, fail = 0;
+    for (const item of skills) {
+      try {
+        const meta = await getSkillMeta(env, item.id);
+        if (!meta) continue;
+        const content = await readContent(env, item.id, meta.latestVersion);
+        if (!content) continue;
+        await indexSkill(env, meta, content);
+        ok++;
+      } catch (e) {
+        fail++;
+        console.error("reindex", item.id, e);
+      }
+    }
+    return json({ ok: true, total: skills.length, indexed: ok, failed: fail });
   }
 
   return null;
