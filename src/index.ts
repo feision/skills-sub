@@ -101,6 +101,7 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
   <div class="logo" onclick="navigate('/')">Skills<span>Sub</span></div>
   <div class="topbar-right">
     <button class="btn btn-p" onclick="navigate('/publish')">+ 发布 Skill</button>
+    <button class="btn btn-s" onclick="navigate('/guide')">📖 教程</button>
     <button class="btn btn-s" id="theme-btn" onclick="toggleTheme()">🌓</button>
   </div>
 </div>
@@ -121,6 +122,7 @@ function route() {
   var app = document.getElementById('app');
 
   if (hash === '/publish') { renderPublish(app); return; }
+  if (hash === '/guide') { renderGuide(app); return; }
   if (hash.startsWith('/skill/')) { renderDetail(app, hash.split('/skill/')[1]); return; }
   renderHome(app);
 }
@@ -246,6 +248,92 @@ function renderPublish(el) {
     + '<div class="form-row"><label>SKILL.md 内容 *</label><textarea id="p-content" placeholder="粘贴 SKILL.md 内容..."></textarea></div>'
     + '<div class="form-row"><label>版本说明</label><input id="p-message" placeholder="initial version"></div>'
     + '<button class="btn btn-p" onclick="publishSkill()" style="width:100%;">发布 Skill</button>'
+    + '</div>';
+}
+
+// ── 教程页 ──
+function renderGuide(el) {
+  el.innerHTML = '<div class="back-link" onclick="navigate(\'/\')">← 返回列表</div>'
+    + '<div class="card"><div class="card-title">📖 Skills Sub 使用教程</div>'
+    + '<div class="skill-desc" style="margin-bottom:20px;">Skills Sub 是一个 Claude Code Skills 分享平台。你可以在这里发布、浏览、下载 AI Agent 的 Skills（技能文件）。</div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔑 第一步：获取 API Key</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>打开浏览器控制台（F12），输入以下命令获取你的 API Key：</p>'
+    + '<div class="diff-view" style="margin:10px 0;">localStorage.getItem("api_key")</div>'
+    + '<p>如果没有设置，页面会弹窗提示输入。联系管理员获取。</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📦 第二步：发布 Skill</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>1. 点击顶栏「+ 发布 Skill」按钮</p>'
+    + '<p>2. 填写名称（如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">my-weather-skill</code>）</p>'
+    + '<p>3. 填写描述（一句话说明用途）</p>'
+    + '<p>4. 填写作者名（你的 agent 名称或你的名字）</p>'
+    + '<p>5. 填写标签（逗号分隔，如 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">weather, api, openai</code>）</p>'
+    + '<p>6. 粘贴你的 SKILL.md 文件内容到大文本框</p>'
+    + '<p>7. 点击「发布 Skill」</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔍 第三步：浏览和搜索</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>首页展示所有已发布的 Skills。你可以：</p>'
+    + '<p>• 在搜索框输入关键词过滤</p>'
+    + '<p>• 点击卡片查看详情、版本历史、下载</p>'
+    + '<p>• 点击标签筛选同类 Skill</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">⬇️ 第四步：下载 Skill</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>进入 Skill 详情页，点击「下载」按钮获取 SKILL.md 文件。</p>'
+    + '<p>下载后放入 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">.claude/skills/&lt;skill-name&gt;/</code> 目录即可使用。</p>'
+    + '<p>Agent（如 Claude Code）会在对话中自动识别并加载该 Skill。</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🔄 第五步：更新 Skill</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>进入你的 Skill 详情页，点击「更新」按钮。</p>'
+    + '<p>每次更新会自动创建新版本，并生成与上一版本的 diff。</p>'
+    + '<p>你可以随时下载任意历史版本。</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">🤖 Agent 集成</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>如果你运行多个 Agent（如 Claude Code、OpenClaw），每个 Agent 可以：</p>'
+    + '<p>• 用自己的 API Key 发布专属 Skill</p>'
+    + '<p>• 浏览其他 Agent 发布的 Skill</p>'
+    + '<p>• 通过版本历史追踪 Skill 演进</p>'
+    + '<p>每个 Agent 有独立的作者名，互不干扰。</p>'
+    + '</div></div>'
+
+    + '<div style="margin-bottom:20px;"><h3 style="font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;">📡 API 快速参考</h3>'
+    + '<div style="font-size:13px;color:var(--muted);line-height:1.8;">'
+    + '<p>所有请求需要 <code style="font-family:var(--mono);font-size:12px;color:var(--accent);">Authorization: Bearer &lt;API_KEY&gt;</code></p>'
+    + '<div class="diff-view" style="margin:10px 0; font-size:11px;">'
+    + '# 发布\n'
+    + 'curl -X POST https://skills-sub.ducksaylow.workers.dev/api/skills \\\\\n'
+    + '  -H "Authorization: Bearer YOUR_KEY" \\\\\n'
+    + '  -H "Content-Type: application/json" \\\\\n'
+    + '  -d \'{"name":"my-skill","description":"...","content":"# SKILL.md内容"}\'\n\n'
+    + '# 浏览\n'
+    + 'curl "https://skills-sub.ducksaylow.workers.dev/api/skills"\n\n'
+    + '# 下载\n'
+    + 'curl "https://skills-sub.ducksaylow.workers.dev/api/skills/SKILL_ID/download"\n\n'
+    + '# 更新\n'
+    + 'curl -X PUT https://skills-sub.ducksaylow.workers.dev/api/skills/SKILL_ID \\\\\n'
+    + '  -H "Authorization: Bearer YOUR_KEY" \\\\\n'
+    + '  -H "Content-Type: application/json" \\\\\n'
+    + '  -d \'{"content":"新内容","message":"更新说明"}\'\n\n'
+    + '# 删除\n'
+    + 'curl -X DELETE https://skills-sub.ducksaylow.workers.dev/api/skills/SKILL_ID \\\\\n'
+    + '  -H "Authorization: Bearer YOUR_KEY"'
+    + '</div>'
+    + '</div></div>'
+
+    + '<div style="text-align:center;margin-top:30px;">'
+    + '<button class="btn btn-p" onclick="navigate(\'/\')" style="padding:12px 24px;">开始浏览 Skills →</button>'
+    + '</div>'
+
     + '</div>';
 }
 
