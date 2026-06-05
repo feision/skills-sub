@@ -113,13 +113,41 @@ const PORTAL_HTML = `<!DOCTYPE html>
     .project-card.expanded:hover { transform: none; }
 
     .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
-    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-desc { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-icon {
+      width: 40px; height: 40px; border-radius: 10px; background: var(--bg-secondary);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .card-icon svg { width: 20px; height: 20px; }
+    .card-title-group { flex: 1; min-width: 0; }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-author-badge {
+      display: inline-block; font-size: 0.65rem; padding: 2px 8px; border-radius: 6px;
+      background: rgba(99,102,241,0.15); color: var(--accent); font-weight: 600;
+      letter-spacing: 0.05em; vertical-align: middle; margin-left: 8px;
+    }
+    .card-author-badge.agent { background: rgba(34,197,94,0.12); color: var(--success); }
+    .card-desc {
+      font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;
+      position: relative; z-index: 1;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
     .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .card-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.15); color: var(--accent); }
-    .card-expand-hint { font-size: 0.65rem; color: var(--text-secondary); opacity: 0.6; transition: var(--transition); flex-shrink: 0; white-space: nowrap; }
+    .card-expand-hint {
+      font-size: 0.7rem; color: var(--text-secondary); opacity: 0.6;
+      transition: var(--transition); margin-left: auto; flex-shrink: 0; margin-top: 4px;
+    }
     .project-card:hover .card-expand-hint { opacity: 1; color: var(--accent); }
     .project-card.expanded .card-expand-hint { display: none; }
+    .card-footer {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      position: relative; z-index: 1; margin-top: auto;
+    }
+    .card-lang { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-secondary); }
+    .lang-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .card-stat { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); }
+    .card-stat svg { width: 14px; height: 14px; fill: currentColor; }
+    .card-date { margin-left: auto; font-size: 0.75rem; color: var(--text-secondary); }
 
     .card-detail {
       max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -292,29 +320,53 @@ const PORTAL_HTML = `<!DOCTYPE html>
         return '<span class="card-tag">' + escapeHtml(t) + '</span>';
       }).join('');
 
-      var detailHtml = '';
+      // icon color by authorType
+      var iconColor = skill.authorType === 'agent' ? '#22c55e' : skill.authorType === 'human' ? '#6366f1' : '#8888a0';
+
+      // authorType badge
+      var badgeClass = skill.authorType === 'agent' ? 'card-author-badge agent' : 'card-author-badge';
+      var badgeHtml = skill.authorType ? '<span class="' + badgeClass + '">' + escapeHtml(skill.authorType) + '</span>' : '';
+
+      // card-footer: tags count + author
+      var tagsCount = (skill.tags || []).length;
+      var firstTag = tagsCount > 0 ? escapeHtml(skill.tags[0]) : '';
+      var footerHtml = '<div class="card-footer">' +
+        (firstTag ? '<span class="card-lang"><span class="lang-dot" style="background:' + iconColor + '"></span>' + firstTag + '</span>' : '') +
+        (tagsCount > 1 ? '<span class="card-stat"><svg viewBox="0 0 24 24"><path d="M7 7h10M7 12h10M7 17h6"/></svg>+' + (tagsCount - 1) + ' tags</span>' : '') +
+        (skill.author ? '<span class="card-date">' + escapeHtml(skill.author) + '</span>' : '') +
+        '</div>';
+
+      // detail panel
+      var detailHtml = '<div class="card-detail">';
       if (expanded) {
         var escapedDesc = escapeAttr(skill.description || '');
         var metaLines = '';
         if (skill.author) metaLines += '<div class="detail-meta-row">作者：' + escapeHtml(skill.author) + '</div>';
         if (skill.authorType) metaLines += '<div class="detail-meta-row">类型：' + escapeHtml(skill.authorType) + '</div>';
-        detailHtml = '<div class="card-detail"><div class="detail-prompt">' + escapeHtml(skill.description || '') + '</div>' +
+        detailHtml += '<div class="detail-prompt">' + escapeHtml(skill.description || '') + '</div>' +
           (metaLines ? '<div class="detail-meta">' + metaLines + '</div>' : '') +
           '<div class="detail-actions">' +
           '<button class="detail-btn copy-btn" type="button" data-action="copy" data-text="' + escapedDesc + '">📋 复制描述</button>' +
           '<a class="detail-btn" href="/#/skill/' + idAttr + '" target="_blank" rel="noopener">➜ 详情页</a>' +
-          '</div></div>';
+          '</div>';
       }
+      detailHtml += '</div>';
 
       return '<div class="' + className + '" data-skill-id="' + idAttr + '" role="button" tabindex="0" aria-expanded="' + (expanded ? 'true' : 'false') + '" style="animation-delay:' + (index * 0.06) + 's;">' +
         '<div class="card-header">' +
-        '<div>' +
-        '<div class="card-title">' + escapeHtml(skill.name) + '</div>' +
-        '<div class="card-desc">' + escapeHtml(skill.description || '') + '</div>' +
+        '<div class="card-icon">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="' + iconColor + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M12 2a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z"/>' +
+        '</svg>' +
+        '</div>' +
+        '<div class="card-title-group">' +
+        '<div class="card-title">' + escapeHtml(skill.name) + badgeHtml + '</div>' +
+        '</div>' +
+        '<span class="card-expand-hint" aria-hidden="true">点击展开 ▾</span>' +
+        '</div>' +
+        '<p class="card-desc">' + escapeHtml(skill.description || '暂无描述') + '</p>' +
         (tagHtml ? '<div class="card-tags">' + tagHtml + '</div>' : '') +
-        '</div>' +
-        '<div class="card-expand-hint" aria-hidden="true">▾</div>' +
-        '</div>' +
+        footerHtml +
         detailHtml +
         '</div>';
     }
