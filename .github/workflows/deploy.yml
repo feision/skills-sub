@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          node-version: '24'
 
       - uses: actions/setup-node@v4
         with:
@@ -20,11 +22,13 @@ jobs:
 
       - name: Deploy to Cloudflare Workers
         id: deploy
+        shell: bash
         run: |
+          set -euo pipefail
           npx wrangler deploy 2>&1 | tee deploy.log
-          URL=$(grep -oP 'https://[^\s]+\.workers\.dev' deploy.log | head -1)
+          URL=$(grep -oP 'https://[^\s]+\.workers\.dev' deploy.log | head -1 || true)
           if [ -z "$URL" ]; then
-            URL="https://skills-sub.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev"
+            URL="https://skills-sub.workers.dev"
           fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
         env:
@@ -34,10 +38,7 @@ jobs:
       - name: Notify deployment
         if: success()
         run: |
-          echo "✅ 部署成功"
-          echo ""
-          echo "🔗 ${{ steps.deploy.outputs.url }}"
-          echo ""
-          echo "## ✅ Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "🔗 **[${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})**" >> "$GITHUB_STEP_SUMMARY"
+          echo "部署成功"
+          echo "URL: ${{ steps.deploy.outputs.url }}"
+          echo "## Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "**URL**: [${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})" >> "$GITHUB_STEP_SUMMARY"
