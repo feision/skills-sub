@@ -113,7 +113,7 @@ const PORTAL_HTML = `<!DOCTYPE html>
     .project-card.expanded:hover { transform: none; }
 
     .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
-    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; word-break: break-word; }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-desc { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .card-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.15); color: var(--accent); }
@@ -139,6 +139,8 @@ const PORTAL_HTML = `<!DOCTYPE html>
     .detail-prompt::-webkit-scrollbar { width: 4px; }
     .detail-prompt::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     .detail-actions { display: flex; gap: 8px; }
+    .detail-meta { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .detail-meta-row { padding: 3px 8px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); }
     .detail-btn {
       display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
       border-radius: 10px; border: 1px solid var(--border); background: var(--bg-secondary);
@@ -276,7 +278,8 @@ const PORTAL_HTML = `<!DOCTYPE html>
       if (searchQuery) {
         var q = searchQuery.toLowerCase();
         result = result.filter(function(s) {
-          return (s.name || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q);
+          var text = ((s.name||'') + ' ' + (s.description||'') + ' ' + (s.author||'') + ' ' + ((s.tags||[]).join(' '))).toLowerCase();
+          return text.indexOf(q) >= 0;
         });
       }
       return result;
@@ -291,10 +294,14 @@ const PORTAL_HTML = `<!DOCTYPE html>
       var detailHtml = '';
       if (expanded) {
         var escapedDesc = escapeAttr(skill.description || '');
+        var metaLines = '';
+        if (skill.author) metaLines += '<div class="detail-meta-row">作者：' + escapeHtml(skill.author) + '</div>';
+        if (skill.authorType) metaLines += '<div class="detail-meta-row">类型：' + escapeHtml(skill.authorType) + '</div>';
         detailHtml = '<div class="card-detail"><div class="detail-prompt">' + escapeHtml(skill.description || '') + '</div>' +
+          (metaLines ? '<div class="detail-meta">' + metaLines + '</div>' : '') +
           '<div class="detail-actions">' +
-          '<button class="detail-btn copy-btn" onclick="copyPrompt(event, this);" data-text="' + escapedDesc + '">📋 复制</button>' +
-          '<a class="detail-btn" href="/#/skill/' + skill.id + '" target="_blank" rel="noopener">➜ 详情</a>' +
+          '<button class="detail-btn copy-btn" onclick="copyPrompt(event, this);" data-text="' + escapedDesc + '">📋 复制描述</button>' +
+          '<a class="detail-btn" href="/#/skill/' + skill.id + '" target="_blank" rel="noopener">➜ 详情页</a>' +
           '</div></div>';
       }
 
@@ -368,6 +375,13 @@ const PORTAL_HTML = `<!DOCTYPE html>
       searchQuery = e.target.value;
       expandedCardId = null;
       renderCards();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && expandedCardId) {
+        expandedCardId = null;
+        renderCards();
+      }
     });
 
     init();
@@ -1142,6 +1156,7 @@ label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;displa
 .skill-card.expanded .skill-detail{max-height:520px;opacity:1;border-top-color:var(--border);margin-top:10px;padding-top:12px;}
 .skill-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:12px;font-size:11px;}
 .skill-detail-item{display:flex;flex-direction:column;gap:2px;}
+.skill-detail-full{grid-column:1/-1;}
 .skill-detail-label{color:var(--muted);font-size:10px;letter-spacing:.05em;}
 .skill-detail-value{color:var(--text);font-weight:600;font-family:var(--mono);word-break:break-all;}
 .skill-detail-actions{display:flex;gap:6px;flex-wrap:wrap;}
