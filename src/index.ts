@@ -509,10 +509,9 @@ function renderStats() {
   var agent = ALL_SKILLS.filter(function(s){ return s.authorType === 'agent'; }).length;
   var avgVer = total ? (ALL_SKILLS.reduce(function(a,s){ return a + (s.latestVersion||0); }, 0) / total).toFixed(1) : '0';
   return '<div class="stats">'
-    + '<div class="stat"><div class="stat-num">' + total + '</div><div class="stat-label">Repos</div></div>'
+    + '<div class="stat"><div class="stat-num">' + total + '</div><div class="stat-label">Skills</div></div>'
     + '<div class="stat"><div class="stat-num">' + human + '</div><div class="stat-label">原创</div></div>'
     + '<div class="stat"><div class="stat-num">' + agent + '</div><div class="stat-label">Agent</div></div>'
-    + '<div class="stat"><div class="stat-num">' + avgVer + '</div><div class="stat-label">平均版本</div></div>'
     + '</div>';
 }
 
@@ -550,25 +549,20 @@ function renderSkillCard(s, idx) {
   var delay = Math.min(idx, 10) * 0.06;
   var tags = (s.tags||[]).slice(0, 3).map(function(t){ return '<span class="skill-tag">#' + esc(t) + '</span>'; }).join('');
   var score = s.score != null ? '<span class="skill-score">' + (s.score*100).toFixed(0) + '%</span>' : '';
-  var forkBadge = s.authorType === 'agent' ? '<span class="skill-fork-badge">FORK</span>' : '';
-  var dateStr = s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : '';
-  var isFork = s.authorType === 'agent';
   return '<div class="card skill-card" data-id="' + s.id + '" style="animation-delay:' + delay.toFixed(2) + 's;" '
     + 'role="button" tabindex="0" aria-expanded="false" '
     + 'onclick="toggleDetail(this.dataset.id,this)" '
     + 'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleDetail(this.dataset.id,this);}">'
-    + '<div class="skill-card-icon">' + icon('folder', 22) + '</div>'
+    + '<div class="skill-card-icon">' + icon('brain', 22) + '</div>'
     + '<div class="skill-card-body">'
     + '<div class="skill-card-head">'
     + '<div class="skill-name">' + esc(s.name) + '</div>'
-    + forkBadge
     + score
     + '</div>'
     + '<div class="skill-desc">' + esc(s.description) + '</div>'
     + '<div class="skill-card-footer">'
-    + '<span class="skill-tag" style="background:rgba(79,255,176,.1);color:var(--accent);">' + icon(isFork ? 'robot' : 'check', 10) + ' ' + esc(s.author) + '</span>'
-    + '<span class="skill-version">v' + s.latestVersion + '</span>'
-    + (dateStr ? '<span class="skill-date">' + dateStr + '</span>' : '')
+    + '<span class="skill-tag" style="background:rgba(79,255,176,.1);color:var(--accent);">' + icon('check', 10) + ' ' + esc(s.author) + '</span>'
+    + (s.authorType ? '<span class="skill-tag">' + esc(s.authorType) + '</span>' : '')
     + '</div></div>'
     + '<div class="skill-card-actions">'
     + '<button class="btn btn-s" data-id="' + s.id + '" onclick="event.stopPropagation();togglePreview(this.dataset.id,this)" title="预览">' + icon('eye', 12) + '</button>'
@@ -586,8 +580,6 @@ function renderDetailPanel(s) {
   return '<div class="skill-detail-grid">'
     + '<div class="skill-detail-item"><div class="skill-detail-label">作者</div><div class="skill-detail-value">@' + esc(s.author) + '</div></div>'
     + '<div class="skill-detail-item"><div class="skill-detail-label">类型</div><div class="skill-detail-value">' + esc(s.authorType) + '</div></div>'
-    + '<div class="skill-detail-item"><div class="skill-detail-label">最新版本</div><div class="skill-detail-value">v' + s.latestVersion + '</div></div>'
-    + '<div class="skill-detail-item"><div class="skill-detail-label">更新时间</div><div class="skill-detail-value">' + (s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : '-') + '</div></div>'
     + (tags ? '<div class="skill-detail-item skill-detail-full"><div class="skill-detail-label">标签</div><div class="skill-detail-value">' + tags + '</div></div>' : '')
     + '</div>'
     + '<div class="skill-detail-actions">'
@@ -1051,8 +1043,7 @@ function toggleTheme() {
 (function() {
   var saved = localStorage.getItem('theme');
   if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  API_KEY = localStorage.getItem('api_key') || prompt('请输入 API Key:') || '';
-  if (API_KEY) localStorage.setItem('api_key', API_KEY);
+  API_KEY = localStorage.getItem('api_key') || '';
   window.addEventListener('hashchange', route);
   // F. 点击空白收起展开卡片
   document.addEventListener('click', function(e) {
