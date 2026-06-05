@@ -52,8 +52,7 @@ const PORTAL_HTML = `<!DOCTYPE html>
       background-size: 60px 60px; pointer-events: none; z-index: 0;
     }
 
-    .container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-
+    /* ── 首页 ── */
     .hero { padding: 80px 0 40px; text-align: center; }
     .hero-icon {
       width: 96px; height: 96px; border-radius: 50%; border: 3px solid var(--accent);
@@ -291,19 +290,18 @@ const PORTAL_HTML = `<!DOCTYPE html>
   <div class="bg-glow"></div>
   <div class="bg-grid"></div>
 
-  <div class="container">
-    <div class="topbar" id="topbar">
-      <div class="logo" onclick="navigate('/')">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="10.5" width="14" height="3" rx="1"/><rect x="3" y="17" width="14" height="3" rx="1"/><path d="M19 2l.8 1.6 1.6.8-1.6.8L19 6.8l-.8-1.6-1.6-.8 1.6-.8z"/></svg>Skills<span>Sub</span></div>
-      <div class="topbar-right">
-        <button class="btn btn-p" onclick="navigate('/publish')">+ 发布 Skill</button>
-        <button class="btn btn-s" onclick="navigate('/guide')">📖 教程</button>
-        <button class="btn btn-s" id="theme-btn" onclick="toggleTheme()">🌓</button>
-      </div>
+  <div class="topbar" id="topbar">
+    <div class="logo" onclick="navigate('/')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="14" height="3" rx="1"/><rect x="3" y="10.5" width="14" height="3" rx="1"/><rect x="3" y="17" width="14" height="3" rx="1"/><path d="M19 2l.8 1.6 1.6.8-1.6.8L19 6.8l-.8-1.6-1.6-.8 1.6-.8z"/></svg>Skills<span>Sub</span></div>
+    <div class="topbar-right">
+      <button class="btn btn-p" onclick="navigate('/publish')">+ 发布 Skill</button>
+      <button class="btn btn-s" onclick="navigate('/guide')">📖 教程</button>
+      <button class="btn btn-s" id="theme-btn" onclick="toggleTheme()">🌓</button>
     </div>
+  </div>
 
-    <div class="page" id="app"></div>
-    <div class="toast" id="toast"></div>
+  <div class="page" id="app"></div>
+  <div class="toast" id="toast"></div>
 
   <script>
   var ICONS = {
@@ -358,6 +356,8 @@ const PORTAL_HTML = `<!DOCTYPE html>
   function route() {
     var hash = window.location.hash.slice(1) || '/';
     var app = document.getElementById('app');
+    app.style.maxWidth = hash === '/' ? '1200px' : '900px';
+    app.style.margin = '0 auto';
     if (hash === '/publish') { renderPublish(app); return; }
     if (hash === '/guide') { renderGuide(app); return; }
     if (hash.startsWith('/skill/')) { renderDetail(app, hash.split('/skill/')[1]); return; }
