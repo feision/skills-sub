@@ -193,7 +193,7 @@ const PORTAL_HTML = `<!DOCTYPE html>
 
     <div class="toolbar">
       <div class="search-box">
-        <input id="search-input" type="text" placeholder="搜索 skills..." />
+        <input id="search-input" type="text" placeholder="搜索 skills..." aria-label="搜索 skills" />
       </div>
     </div>
 
@@ -244,7 +244,7 @@ const PORTAL_HTML = `<!DOCTYPE html>
         var count = cat === 'all' ? allSkills.length :
           allSkills.filter(function(s) { return (s.tags || []).includes(cat); }).length;
         var active = cat === activeCategory ? ' active' : '';
-        htmlArr.push('<button class="filter-chip' + active + '" onclick="setCategory(\\'\\'' + cat + '\\'\\');">' + cat + ' (' + count + ')</button>');
+        htmlArr.push('<button class="filter-chip' + active + '" type="button" data-cat="' + escapeAttr(cat) + '" aria-pressed="' + (cat === activeCategory ? 'true' : 'false') + '">' + escapeHtml(cat) + ' (' + count + ')</button>');
       });
       document.getElementById('filter-chips').innerHTML = htmlArr.join('');
     }
@@ -287,6 +287,7 @@ const PORTAL_HTML = `<!DOCTYPE html>
 
     function buildCard(skill, expanded, index) {
       var className = expanded ? 'project-card expanded' : 'project-card';
+      var idAttr = escapeAttr(String(skill.id));
       var tagHtml = (skill.tags || []).map(function(t) {
         return '<span class="card-tag">' + escapeHtml(t) + '</span>';
       }).join('');
@@ -300,36 +301,30 @@ const PORTAL_HTML = `<!DOCTYPE html>
         detailHtml = '<div class="card-detail"><div class="detail-prompt">' + escapeHtml(skill.description || '') + '</div>' +
           (metaLines ? '<div class="detail-meta">' + metaLines + '</div>' : '') +
           '<div class="detail-actions">' +
-          '<button class="detail-btn copy-btn" onclick="copyPrompt(event, this);" data-text="' + escapedDesc + '">📋 复制描述</button>' +
-          '<a class="detail-btn" href="/#/skill/' + skill.id + '" target="_blank" rel="noopener">➜ 详情页</a>' +
+          '<button class="detail-btn copy-btn" type="button" data-action="copy" data-text="' + escapedDesc + '">📋 复制描述</button>' +
+          '<a class="detail-btn" href="/#/skill/' + idAttr + '" target="_blank" rel="noopener">➜ 详情页</a>' +
           '</div></div>';
       }
 
-      return '<div class="' + className + '" data-skill-id="' + skill.id + '" style="animation-delay:' + (index * 0.06) + 's;" onclick="toggleCard(event, \\'' + skill.id + '\\');">' +
+      return '<div class="' + className + '" data-skill-id="' + idAttr + '" role="button" tabindex="0" aria-expanded="' + (expanded ? 'true' : 'false') + '" style="animation-delay:' + (index * 0.06) + 's;">' +
         '<div class="card-header">' +
         '<div>' +
         '<div class="card-title">' + escapeHtml(skill.name) + '</div>' +
         '<div class="card-desc">' + escapeHtml(skill.description || '') + '</div>' +
         (tagHtml ? '<div class="card-tags">' + tagHtml + '</div>' : '') +
         '</div>' +
-        '<div class="card-expand-hint">▾</div>' +
+        '<div class="card-expand-hint" aria-hidden="true">▾</div>' +
         '</div>' +
         detailHtml +
         '</div>';
     }
 
-    function toggleCard(e, id) {
-      if (e.target.closest('.detail-actions')) return;
-      if (expandedCardId === id) {
-        expandedCardId = null;
-      } else {
-        expandedCardId = id;
-      }
+    function toggleCard(id) {
+      expandedCardId = (expandedCardId === id) ? null : id;
       renderCards();
     }
 
-    function copyPrompt(e, btn) {
-      e.stopPropagation();
+    function copyPrompt(btn) {
       var text = btn.getAttribute('data-text') || '';
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(function() {
@@ -375,6 +370,28 @@ const PORTAL_HTML = `<!DOCTYPE html>
       searchQuery = e.target.value;
       expandedCardId = null;
       renderCards();
+    });
+
+    document.getElementById('filter-chips').addEventListener('click', function(e) {
+      var chip = e.target.closest('.filter-chip');
+      if (chip) setCategory(chip.getAttribute('data-cat'));
+    });
+
+    var grid = document.getElementById('skills-grid');
+    grid.addEventListener('click', function(e) {
+      var copyBtn = e.target.closest('[data-action="copy"]');
+      if (copyBtn) { copyPrompt(copyBtn); return; }
+      if (e.target.closest('.detail-actions')) return;
+      var card = e.target.closest('.project-card');
+      if (card && card.dataset.skillId) toggleCard(card.dataset.skillId);
+    });
+    grid.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var card = e.target.closest('.project-card');
+      if (card && card.dataset.skillId && !e.target.closest('.detail-actions')) {
+        e.preventDefault();
+        toggleCard(card.dataset.skillId);
+      }
     });
 
     document.addEventListener('keydown', function(e) {
@@ -491,7 +508,7 @@ async function renderHome(el) {
     var html = '<div class="card-title">Browse Skills</div>';
     html += renderStats();
     html += '<div class="search-bar">';
-    html += '<div class="search-box">' + icon('search', 18) + '<input id="search-input" placeholder="搜索 skill..." oninput="onSearchInput(this.value)"></div>';
+    html += '<div class="search-box">' + icon('search', 18) + '<input id="search-input" placeholder="搜索 skill..." aria-label="搜索 skill" oninput="onSearchInput(this.value)"></div>';
     html += '<button class="btn btn-s search-mode-btn" id="search-mode-btn" onclick="toggleSearchMode()">' + icon('search', 12) + ' 关键词</button>';
     html += '</div>';
     html += renderFilterTabs();
@@ -763,7 +780,7 @@ async function renderDetail(el, id) {
         + '</div></div>';
     }).join('');
 
-    var tags = (skill.tags||[]).map(function(t){ return '<span class="skill-tag">#'+t+'</span>'; }).join(' ');
+    var tags = (skill.tags||[]).map(function(t){ return '<span class="skill-tag">#'+esc(t)+'</span>'; }).join(' ');
 
     var html = '<div class="back-link" onclick="navigate(\'/\')">' + icon('arrowLeft', 12) + ' 返回列表</div>';
     html += '<div class="card">';
