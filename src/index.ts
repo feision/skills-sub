@@ -3,9 +3,386 @@
 import { handleApi } from "./api";
 import type { Env } from "./types";
 
+// Portal HTML（纯静态 HTML，JS 用 var 而非 const/template literals）
+const PORTAL_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills Portal | AI Skills 导航库</title>
+  <meta name="description" content="Claude Code Skills 导航库 - 搜索、浏览、复制 AI Skills">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%236366f1'>S</text></svg>">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #16161f;
+      --border: #2a2a3a;
+      --text-primary: #e8e8f0;
+      --text-secondary: #8888a0;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+      --radius: 16px;
+      --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --success: #22c55e;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    .bg-glow {
+      position: fixed; top: -20%; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    .bg-grid {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 60px 60px; pointer-events: none; z-index: 0;
+    }
+
+    .container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+    .hero { padding: 80px 0 40px; text-align: center; }
+    .hero-icon {
+      width: 96px; height: 96px; border-radius: 50%; border: 3px solid var(--accent);
+      box-shadow: 0 0 30px var(--accent-glow); margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: center; font-size: 48px;
+      transition: var(--transition);
+    }
+    .hero-icon:hover { transform: scale(1.05); box-shadow: 0 0 50px var(--accent-glow); }
+    .hero h1 {
+      font-size: 2.5rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #e8e8f0 0%, #6366f1 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      margin-bottom: 8px;
+    }
+    .hero p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 24px; }
+
+    .stats { display: flex; justify-content: center; gap: 40px; padding: 24px 0; margin-bottom: 16px; }
+    .stat-item { text-align: center; }
+    .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; }
+
+    .toolbar { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; align-items: center; }
+    .search-box { flex: 1; min-width: 240px; position: relative; }
+    .search-box input {
+      width: 100%; padding: 12px 16px 12px 42px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);
+      font-size: 0.9rem; transition: var(--transition);
+    }
+    .search-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+    .search-box::before { content: '🔍'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 16px; pointer-events: none; }
+
+    .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .filter-chip { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font-size: 0.85rem; cursor: pointer; transition: var(--transition); }
+    .filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .projects-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+
+    .project-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; display: flex; flex-direction: column; gap: 12px;
+      transition: var(--transition); position: relative; overflow: hidden; cursor: pointer;
+    }
+    .project-card::before {
+      content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+      background: linear-gradient(135deg, var(--accent-glow) 0%, transparent 60%);
+      opacity: 0; transition: var(--transition);
+    }
+    .project-card:hover {
+      transform: translateY(-4px); border-color: var(--accent);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.3), 0 0 30px var(--accent-glow);
+    }
+    .project-card:hover::before { opacity: 1; }
+    .project-card.expanded { border-color: var(--accent); box-shadow: 0 8px 40px rgba(0,0,0,0.3), 0 0 30px var(--accent-glow); }
+    .project-card.expanded::before { opacity: 1; }
+    .project-card.expanded:hover { transform: none; }
+
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; word-break: break-word; }
+    .card-desc { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .card-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.15); color: var(--accent); }
+    .card-expand-hint { font-size: 0.65rem; color: var(--text-secondary); opacity: 0.6; transition: var(--transition); flex-shrink: 0; white-space: nowrap; }
+    .project-card:hover .card-expand-hint { opacity: 1; color: var(--accent); }
+    .project-card.expanded .card-expand-hint { display: none; }
+
+    .card-detail {
+      max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0; position: relative; z-index: 1;
+      border-top: 1px solid transparent; margin-top: 0;
+    }
+    .project-card.expanded .card-detail {
+      max-height: 500px; opacity: 1;
+      border-top-color: var(--border); margin-top: 12px; padding-top: 12px;
+    }
+    .detail-prompt {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; font-size: 0.75rem; color: var(--text-secondary);
+      line-height: 1.5; margin-bottom: 12px; font-family: 'Monaco', 'Courier New', monospace;
+      white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;
+    }
+    .detail-prompt::-webkit-scrollbar { width: 4px; }
+    .detail-prompt::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .detail-actions { display: flex; gap: 8px; }
+    .detail-btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+      border-radius: 10px; border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-primary); font-size: 0.78rem; cursor: pointer;
+      transition: var(--transition); font-weight: 500; text-decoration: none;
+    }
+    .detail-btn:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .detail-btn.copy-btn { border-color: var(--success); color: var(--success); }
+    .detail-btn.copy-btn:hover { background: var(--success); color: #fff; border-color: var(--success); }
+    .detail-btn.copied { background: var(--success); color: #fff; border-color: var(--success); }
+
+    .project-card { opacity: 0; transform: translateY(20px); animation: fadeInUp 0.5s ease forwards; }
+    @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+    .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+    .empty-state p { font-size: 1rem; }
+
+    footer { text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 0.8rem; position: relative; z-index: 1; }
+
+    @media (max-width: 1024px) { .projects-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 1.8rem; }
+      .hero { padding: 48px 0 24px; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .stats { gap: 24px; }
+      .stat-value { font-size: 1.4rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="bg-grid"></div>
+
+  <div class="container">
+    <header class="hero">
+      <div class="hero-icon">🧠</div>
+      <h1>AI Skills</h1>
+      <p>Claude Code & Agent Skills 导航库</p>
+    </header>
+
+    <div class="stats">
+      <div class="stat-item"><div class="stat-value" id="stat-total">-</div><div class="stat-label">Total Skills</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-human">-</div><div class="stat-label">Human</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-agent">-</div><div class="stat-label">Agent</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-box">
+        <input id="search-input" type="text" placeholder="搜索 skills..." />
+      </div>
+    </div>
+
+    <div class="filter-chips" id="filter-chips"></div>
+    <div class="projects-grid" id="skills-grid"></div>
+
+    <footer>
+      Built with 💜 for Claude Code Skills. <a href="https://github.com/feision/skills-sub" target="_blank" rel="noopener">GitHub</a>
+    </footer>
+  </div>
+
+  <script>
+    var SKILLS_API = '/api/skills';
+    var allSkills = [];
+    var expandedCardId = null;
+    var activeCategory = 'all';
+    var searchQuery = '';
+
+    async function init() {
+      try {
+        var res = await fetch(SKILLS_API);
+        var data = await res.json();
+        allSkills = data.skills || [];
+        renderStats();
+        renderCategories();
+        renderCards();
+      } catch (e) {
+        document.getElementById('skills-grid').innerHTML = '<div class="empty-state"><p>加载失败: ' + (e.message || '') + '</p></div>';
+      }
+    }
+
+    function renderStats() {
+      var total = allSkills.length;
+      var human = allSkills.filter(function(s) { return s.authorType === 'human'; }).length;
+      var agent = allSkills.filter(function(s) { return s.authorType === 'agent'; }).length;
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-human').textContent = human;
+      document.getElementById('stat-agent').textContent = agent;
+    }
+
+    function renderCategories() {
+      var cats = new Set(['all']);
+      allSkills.forEach(function(s) {
+        (s.tags || []).forEach(function(t) { cats.add(t); });
+      });
+      var htmlArr = [];
+      cats.forEach(function(cat) {
+        var count = cat === 'all' ? allSkills.length :
+          allSkills.filter(function(s) { return (s.tags || []).includes(cat); }).length;
+        var active = cat === activeCategory ? ' active' : '';
+        htmlArr.push('<button class="filter-chip' + active + '" onclick="setCategory(\\'\\'' + cat + '\\'\\');">' + cat + ' (' + count + ')</button>');
+      });
+      document.getElementById('filter-chips').innerHTML = htmlArr.join('');
+    }
+
+    function setCategory(cat) {
+      activeCategory = cat;
+      expandedCardId = null;
+      renderCards();
+      renderCategories();
+    }
+
+    function renderCards() {
+      var filtered = filterSkills();
+      if (!filtered.length) {
+        document.getElementById('skills-grid').innerHTML = '<div class="empty-state"><p>未找到匹配的 Skills</p></div>';
+        return;
+      }
+      var htmlArr = [];
+      filtered.forEach(function(s, i) {
+        var isExpanded = expandedCardId === s.id;
+        htmlArr.push(buildCard(s, isExpanded, i));
+      });
+      document.getElementById('skills-grid').innerHTML = htmlArr.join('');
+    }
+
+    function filterSkills() {
+      var result = allSkills;
+      if (activeCategory !== 'all') {
+        result = result.filter(function(s) { return (s.tags || []).includes(activeCategory); });
+      }
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        result = result.filter(function(s) {
+          return (s.name || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q);
+        });
+      }
+      return result;
+    }
+
+    function buildCard(skill, expanded, index) {
+      var className = expanded ? 'project-card expanded' : 'project-card';
+      var tagHtml = (skill.tags || []).map(function(t) {
+        return '<span class="card-tag">' + escapeHtml(t) + '</span>';
+      }).join('');
+
+      var detailHtml = '';
+      if (expanded) {
+        var escapedDesc = escapeAttr(skill.description || '');
+        detailHtml = '<div class="card-detail"><div class="detail-prompt">' + escapeHtml(skill.description || '') + '</div>' +
+          '<div class="detail-actions">' +
+          '<button class="detail-btn copy-btn" onclick="copyPrompt(event, this);" data-text="' + escapedDesc + '">📋 复制</button>' +
+          '<a class="detail-btn" href="/#/skill/' + skill.id + '" target="_blank" rel="noopener">➜ 详情</a>' +
+          '</div></div>';
+      }
+
+      return '<div class="' + className + '" data-skill-id="' + skill.id + '" style="animation-delay:' + (index * 0.06) + 's;" onclick="toggleCard(event, \\'' + skill.id + '\\');">' +
+        '<div class="card-header">' +
+        '<div>' +
+        '<div class="card-title">' + escapeHtml(skill.name) + '</div>' +
+        '<div class="card-desc">' + escapeHtml(skill.description || '') + '</div>' +
+        (tagHtml ? '<div class="card-tags">' + tagHtml + '</div>' : '') +
+        '</div>' +
+        '<div class="card-expand-hint">▾</div>' +
+        '</div>' +
+        detailHtml +
+        '</div>';
+    }
+
+    function toggleCard(e, id) {
+      if (e.target.closest('.detail-actions')) return;
+      if (expandedCardId === id) {
+        expandedCardId = null;
+      } else {
+        expandedCardId = id;
+      }
+      renderCards();
+    }
+
+    function copyPrompt(e, btn) {
+      e.stopPropagation();
+      var text = btn.getAttribute('data-text') || '';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          showCopyFeedback(btn);
+        }).catch(function() {
+          fallbackCopy(text, btn);
+        });
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showCopyFeedback(btn);
+    }
+
+    function showCopyFeedback(btn) {
+      var orig = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = '✓ 已复制';
+      setTimeout(function() {
+        btn.classList.remove('copied');
+        btn.innerHTML = orig;
+      }, 2000);
+    }
+
+    function escapeHtml(text) {
+      var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return (text || '').replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function escapeAttr(text) {
+      return (text || '').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    document.getElementById('search-input').addEventListener('input', function(e) {
+      searchQuery = e.target.value;
+      expandedCardId = null;
+      renderCards();
+    });
+
+    init();
+  </script>
+</body>
+</html>\`;`
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Portal 路由
+    if (url.pathname === "/portal" || url.pathname === "/portal.html") {
+      return html(PORTAL_HTML);
+    }
 
     // API 路由
     const apiRes = await handleApi(request, env);
